@@ -190,11 +190,13 @@ void nand_stat_print(FILE *outFP)
 }
 
 /**************** NAND INIT **********************/
+// 初始化对应的结构体，MLC和SLC都是结构体数组
 int nand_init (_u32 blk_num,_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_num)
 {
+  // 有个地方难以理解，既然分类SLC和MLC为什么还要初始化对应的一个nand_blk?数组？
   _u32 blk_no;
   int i;
-
+// 先检查指针是否为NULL做下释放
   nand_end();
 
   nand_blk = (struct nand_blk_info *)malloc(sizeof (struct nand_blk_info) * blk_num);
@@ -204,8 +206,10 @@ int nand_init (_u32 blk_num,_u32 SLC_blk_num,_u32 MLC_blk_num, _u8 min_free_blk_
   {
     return -1;
   }
+  // 循环队列SLC的处理用到了head,tail,cold_head,cold_tial
   head=tail=&SLC_nand_blk[0]; 
 //  hot_head=hot_tail=&SLC_nand_blk[512]; 
+// 这个块号为什么是3072？？？
   cold_head=cold_tail=&SLC_nand_blk[3072];
   memset(nand_blk, 0xFF, sizeof (struct nand_blk_info) * blk_num);
   memset(SLC_nand_blk, 0xFF, sizeof (struct SLC_nand_blk_info) * SLC_blk_num);
@@ -279,6 +283,8 @@ void nand_end ()
 }
 
 /**************** NAND OOB READ **********************/
+// nand_oob_read通过nand_blk[pbn].sect[pin].free 和nand_blk[pbn].sect[pin].valid结合判断页的状态（有效1,无效-1，空闲 0）
+// 会增加一次统计变量oob_read
 int nand_oob_read(_u32 psn)
 {
   blk_t pbn = BLK_F_SECT(psn);	// physical block number	
@@ -286,7 +292,7 @@ int nand_oob_read(_u32 psn)
   _u16  i, valid_flag = 0;
 
   ASSERT(pbn < nand_blk_num);	// pbn shouldn't exceed max nand block number 
-
+// 从页的起始扇区到结束山区的连续区域进行检测，只要一个满足直接跳出
   for (i = 0; i < SECT_NUM_PER_PAGE; i++) {
     if(nand_blk[pbn].sect[pin + i].free == 0){
 
@@ -309,6 +315,8 @@ int nand_oob_read(_u32 psn)
   
   return valid_flag;
 }
+
+// 和上面nand_oob_read的实现一模一样
 int SLC_nand_oob_read(_u32 psn)
 {
   blk_t pbn = S_BLK_F_SECT(psn);	// physical block number	
@@ -369,6 +377,7 @@ int MLC_nand_oob_read(_u32 psn)
   
   return valid_flag;
 }
+
 void break_point()
 {
   printf("break point\n");
@@ -386,6 +395,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
   }
 
   ASSERT(OFF_F_SECT(psn) == 0);
+  // 这段代码中的8848块遍历，8848的值确定死有问题？
   if(nand_blk[pbn].state.free != 0) {
     for( i =0 ; i < 8448 ; i++){
       for(j =0; j < 256;j++){

@@ -1,0 +1,29 @@
+flashsim对Nand的结构体数组的操作，其中的变量操作变化很搞，
+涉及的变量:
+pin：page index (within the block), here page index is the same as sector index
+pbn: 当前处理的块nand_blk 在总结构体数组中的标号，也就是理解的物理块号
+psn: 物理扇区号
+
+这里需要理清楚psn其实是由pbn（24位表示）+pin（8位进行表示）组合而成的，看下宏定义操作：
+代码中调用时，psn就作为sect输入的，psn是u_32类型的
+#define BLK_F_SECT(sect) (((sect) & BLK_MASK_SECT) >> IND_BITS_SECT)
+#define BLK_MASK_SECT 0x3FFFFF00
+#define BLK_BITS_SECT 22
+#define PGE_BITS_SECT  6
+#define OFF_BITS_SECT  2
+#define IND_BITS_SECT (PGE_BITS_SECT + OFF_BITS_SECT)
+BLK_MASK_SECT 换成二进制就是00(22个1)(8个00)
+
+#define PGE_MASK_SECT 0x000000FC
+换算成二进制是(24个0)+6个1+2个0
+#define PGE_F_SECT(sect) (((sect) & PGE_MASK_SECT) >> OFF_BITS_SECT)
+刚好根据psn换算出对应的页在该块中的偏移量
+
+借助这个宏可以直接根据psn的扇区在页中的偏移量
+#define OFF_F_SECT(sect) (((sect) & OFF_MASK_SECT))
+
+
+lsn:逻辑扇区号
+lpn: 逻辑页号
+
+
