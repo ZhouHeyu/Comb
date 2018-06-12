@@ -384,6 +384,9 @@ void break_point()
 }
 
 /**************** NAND PAGE READ **********************/
+// 调用该函数分为垃圾回收读（拷贝有效页）和非垃圾回收读
+// 传入的lsns是个数组 lsns[SECT_NUM_PER_PAGE]，一个页的扇区内容（nand_blk[pbn].sect[pin+i].lsn,0<i<SECT_NUM_PER_PAGE）
+// isGC =1 处于垃圾回收状态
 _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
 {
   blk_t pbn = BLK_F_SECT(psn);	// physical block number	
@@ -407,6 +410,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
     }
   }
 
+// 读的块必须有内容，即nand_blk[pbn].sect[pin].lsn有值
   ASSERT(nand_blk[pbn].state.free == 0);	// block should be written with something
 
   if (isGC == 1) {
@@ -418,7 +422,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
         valid_sect_num++;
       }
     }
-
+// 错误调试，一个页中的扇区的有效应该都一样，valid_sect_num应该为4
     if(valid_sect_num == 3){
       for(i = 0; i<SECT_NUM_PER_PAGE; i++){
         printf("pbn: %d, pin %d: %d, free: %d, valid: %d\n", 
@@ -427,7 +431,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
       }
       exit(0);
     }
-
+// isGC==2的状态？翻译页的回收？可以要求一个页的扇区的状态不连续？
   } else if (isGC == 2) {
     for (i = 0; i < SECT_NUM_PER_PAGE; i++) {
       if (lsns[i] != -1) {
@@ -441,7 +445,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
       }
     }
   } 
-
+// 正常地读取数据页，但是该情况下的lsns[i]内有扇区的值，作为核算的数据进来
   else { // every sector should be "valid", "not free"   
     for (i = 0; i < SECT_NUM_PER_PAGE; i++) {
       if (lsns[i] != -1) {
@@ -457,7 +461,7 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
       }
     }
   }
-  
+  // 统计数据页的读操作次数
   if (isGC) {
     if (valid_sect_num > 0) {
       nand_stat(GC_PAGE_READ);
@@ -465,9 +469,11 @@ _u8 nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
   } else {
     nand_stat(PAGE_READ);
   }
-  
+  // 最后返回的值一般没问题是4，isGC==2返回的不一定是4
   return valid_sect_num;
 }
+
+// 结构和上面的nand_page_read是一样的
 _u8 SLC_nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
 {
   blk_t pbn = S_BLK_F_SECT(psn);	// physical block number	
@@ -551,6 +557,7 @@ _u8 SLC_nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
   
   return valid_sect_num;
 }
+// 结构和nand_page_read 是一样的，但块大小和页大小会影响到块包含扇区的大小
 _u8 MLC_nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
 {
   blk_t pbn = M_BLK_F_SECT(psn);	// physical block number	
@@ -636,6 +643,11 @@ _u8 MLC_nand_page_read(_u32 psn, _u32 *lsns, _u8 isGC)
 }
 
 /**************** NAND PAGE WRITE **********************/
+// 关于数据页写入的区分有翻译页更新写入，数据页写入
+// map_flag=2-->翻译页   -->更新nand_blk[pbn].page_stast[pin/M_SESCT_NUM_PER_PAGE]=1
+// map_flag=2-->数据页   -->更新nand_blk[pbn].page_stast[pin/M_SESCT_NUM_PER_PAGE]=2
+// psn是确定要写入的扇区位置，lsn[M_SECT_NUM_PER_PAGE]是要写入的东西
+// 具体的写入又分为数据页更新的次数，翻译页的更新次数，其实这里就可以添加自己的统计变量查看翻译页更新的次数
 _u8 MLC_nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 {
   blk_t pbn = M_BLK_F_SECT(psn);	// physical block number with psn
@@ -649,14 +661,14 @@ _u8 MLC_nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 
   ASSERT(pbn < nand_MLC_blk_num);
   ASSERT(M_OFF_F_SECT(psn) == 0);
-
+// 更新对应的page状态
   if(map_flag == 2) {
         MLC_nand_blk[pbn].page_status[pin/M_SECT_NUM_PER_PAGE] = 1; // 1 for map table
   }
   else{
     MLC_nand_blk[pbn].page_status[pin/M_SECT_NUM_PER_PAGE] = 0; // 0 for data 
   }
-
+// 往nand_blk[pbn].sect[pin].lsn添入值，改变nand_blk[pbn].sect[pin].free和valid的状态
   for (i = 0; i <M_SECT_NUM_PER_PAGE; i++) {
 
     if (lsns[i] != -1) {
@@ -680,15 +692,18 @@ _u8 MLC_nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
   }
   
   ASSERT(MLC_nand_blk[pbn].fpc >= 0);
-
+// 根据isGC的状态区分统计量的更新
   if (isGC) {
     nand_stat(MLC_GC_PAGE_WRITE);
   } else {
     nand_stat(MLC_PAGE_WRITE);
   }
-
+// 返回值写入的lsn[M_SECT_NUM_PER_PAGE]非负值
   return valid_sect_num;
 }
+
+
+// SLC的写入更新跟MLC一样的函数，但是SLC实际采用的是PPFTL，所以map_flag一般为1，方便后期的拓展
 _u8 SLC_nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 {
   blk_t pbn = S_BLK_F_SECT(psn);	// physical block number with psn
@@ -742,6 +757,7 @@ _u8 SLC_nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 
   return valid_sect_num;
 }
+
 _u8 nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 {
   blk_t pbn = BLK_F_SECT(psn);	// physical block number with psn
@@ -797,6 +813,7 @@ _u8 nand_page_write(_u32 psn, _u32 *lsns, _u8 isGC, int map_flag)
 }
 
 /**************** NAND BLOCK ERASE **********************/
+// 该函数只是简单地将对应的nand_blk[blk_no]的状态位置位，有效页的拷贝赋值得靠上面的FTL完成
 void nand_erase (_u32 blk_no)
 {
   int i;
@@ -804,7 +821,7 @@ void nand_erase (_u32 blk_no)
   ASSERT(blk_no < nand_blk_num);
 
   ASSERT(nand_blk[blk_no].fpc <= SECT_NUM_PER_BLK);
-
+// 确保擦除的块不是空闲的块
   if(nand_blk[blk_no].state.free != 0){ printf("debug\n"); }
 
   ASSERT(nand_blk[blk_no].state.free == 0);
@@ -828,7 +845,7 @@ void nand_erase (_u32 blk_no)
   }
 
   free_blk_num++;
-
+// 统计块擦除次数
   nand_stat(BLOCK_ERASE);
 }
 void SLC_nand_erase (_u32 blk_no)
@@ -865,6 +882,8 @@ void SLC_nand_erase (_u32 blk_no)
 
   nand_stat(SLC_BLOCK_ERASE);
 }
+
+// 和nand_erase的操作一模一样
 void cold_nand_erase (_u32 blk_no)
 {
   int i;
@@ -899,6 +918,8 @@ void cold_nand_erase (_u32 blk_no)
 
   nand_stat(SLC_BLOCK_ERASE);
 }
+
+// 和nand_erase的操作一模一样
 void hot_nand_erase (_u32 blk_no)
 {
   int i;
@@ -967,7 +988,12 @@ void MLC_nand_erase (_u32 blk_no)
 
   nand_stat(MLC_BLOCK_ERASE);
 }
+
+
+
 /**************** NAND INVALIDATE **********************/
+// 将nand_blk[blk_no]的数据页置位无效，配合写入更新使用
+// 只是简单的状态置位
 void nand_invalidate (_u32 psn, _u32 lsn)
 {
   _u32 pbn = BLK_F_SECT(psn);
@@ -976,9 +1002,10 @@ void nand_invalidate (_u32 psn, _u32 lsn)
 
   ASSERT(pbn < nand_blk_num);
   ASSERT(nand_blk[pbn].sect[pin].free == 0);
+  // 重复debug....
   if(nand_blk[pbn].sect[pin].valid != 1) { printf("debug"); }
   ASSERT(nand_blk[pbn].sect[pin].valid == 1);
-
+// 确认置位的数据和lsn一致
   if(nand_blk[pbn].sect[pin].lsn != lsn){
     ASSERT(0);
   }
@@ -1013,6 +1040,7 @@ void SLC_nand_invalidate (_u32 psn, _u32 lsn)
 
   ASSERT(SLC_nand_blk[pbn].ipc <= S_SECT_NUM_PER_BLK);
 }
+
 void MLC_nand_invalidate (_u32 psn, _u32 lsn)
 {
   _u32 pbn = M_BLK_F_SECT(psn);
@@ -1035,20 +1063,24 @@ void MLC_nand_invalidate (_u32 psn, _u32 lsn)
 
   ASSERT(MLC_nand_blk[pbn].ipc <= M_SECT_NUM_PER_BLK);
 }
+
+/*********************Get free blk*********************************/
+// 该函数会配合被动垃圾回收策略，当min_fb_num>=free_blk_num返回-1，告诉FTL该启动GC
+// 选择空闲块的策略，是选择当前块擦除次数最少的块进行调用
 _u32 nand_get_free_blk (int isGC) 
 {
   _u32 blk_no = -1, i;
   int flag = 0,flag1=0;
   flag = 0;
   flag1 = 0;
-
+// 其实也是块的最大擦除次数MIN_ERASE
   MIN_ERASE = 9999999;
   //in case that there is no avaible free block -> GC should be called !
   if ((isGC == 0) && (min_fb_num >= free_blk_num)) {
     //printf("min_fb_num: %d\n", min_fb_num);
     return -1;
   }
-
+// 选择块擦除次数最少的空闲块返回
   for(i = 0; i < nand_blk_num; i++) 
   {
     if (nand_blk[i].state.free == 1) {
@@ -1066,6 +1098,7 @@ _u32 nand_get_free_blk (int isGC)
     
   ASSERT(0);
   }
+  // 再返回调用前做错误核对
   if ( flag == 1) {
         flag = 0;
         ASSERT(nand_blk[blk_no].fpc == SECT_NUM_PER_BLK);
@@ -1084,6 +1117,12 @@ _u32 nand_get_free_blk (int isGC)
 
   return -1;
 }
+
+
+
+/***********************************************************************/
+// SLC选择空闲块的时候，不是循环遍历最小块擦除次数选择，而是采用循环队列的方式
+// blk_no=head-SLC_nand_blk
 _u32 nand_get_SLC_free_blk (int isGC) 
 {
   _u32 blk_no=-1 , i;
@@ -1140,6 +1179,10 @@ _u32 nand_get_SLC_free_blk (int isGC)
 
   return -1;
 }
+
+
+// 选择空闲块的时候区别采用的
+// blk_no=hot_head-&SLC_nand_blk[0];
 _u32 nand_get_hot_free_blk (int isGC) 
 {
   _u32 blk_no=-1 , i;
@@ -1196,6 +1239,9 @@ _u32 nand_get_hot_free_blk (int isGC)
 
   return -1;
 }
+
+// 选择空闲块的时候区别采用的
+// blk_no=cold_head-&SLC_nand_blk[0];
 _u32 nand_get_cold_free_blk (int isGC) 
 {
   _u32 blk_no=-1 , i;
@@ -1252,6 +1298,9 @@ _u32 nand_get_cold_free_blk (int isGC)
 
   return -1;
 }
+
+/*********************MLC 的get Free blk 策略和nand_get_free 一样的********************************/
+
 _u32 nand_get_MLC_free_blk (int isGC) 
 {
   _u32 blk_no = -1, i;
