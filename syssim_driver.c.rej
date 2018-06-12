@@ -1,0 +1,43 @@
+*** syssim_driver.c	2009-06-15 00:08:52.000000000 +0200
+--- syssim_driver.c	2010-03-24 16:59:24.000000000 +0100
+***************
+*** 129,135 ****
+  
+  int
+  main(int argc, char *argv[])
+! {
+    int i;
+    int nsectors;
+    struct stat buf;
+--- 129,135 ----
+  
+  int
+  main(int argc, char *argv[])
+! {
+    int i;
+    int nsectors;
+    struct stat buf;
+***************
+*** 139,144 ****
+  
+    int test_encapsulation;
+    char outfile2[81];
+  
+    //if (argc != 5 || (nsectors = atoi(argv[3])) <= 0) {
+    if (argc != 6 || (nsectors = atoi(argv[3])) <= 0) {
+--- 139,153 ----
+  
+    int test_encapsulation;
+    char outfile2[81];
++ 
++   //youkim
++   FILE *fp = fopen(argv[5], "r");
++   double time;
++   int devno, bcount, flags;
++   unsigned int blkno;
++   char buffer[80];
++   unsigned int cnt = 0;
++   int BLOCKSIZE = 512;
+  
+    //if (argc != 5 || (nsectors = atoi(argv[3])) <= 0) {
+    if (argc != 6 || (nsectors = atoi(argv[3])) <= 0) {
