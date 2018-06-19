@@ -1,0 +1,5 @@
+make -C modules
+make[1]: 正在进入目录 `/home/zj/桌面/cache-design/CombFTL/modules'
+make[1]: 没有什么可以做的为 `all'。
+make[1]:正在离开目录 `/home/zj/桌面/cache-design/CombFTL/modules'
+gcc -Wall -Wno-unused -MD -c    -g -DASSERTS   -D_INLINE -DFSIM_DEBUG -g ssd_interface.c -o ssd_interface.o

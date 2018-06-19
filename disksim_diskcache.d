@@ -23,9 +23,9 @@ disksim_diskcache.o: disksim_diskcache.c disksim_global.h \
  /usr/include/assert.h disksim_iosim.h disksim_ioface.h \
  disksim_device.h disksim_stat.h disksim_disk.h disksim_ioqueue.h \
  config.h \
- /home/kuan/code/test/hybrid/libparam/include/libparam/libparam.h \
- /home/kuan/code/test/hybrid/libparam/include/libparam/bitvector.h \
- /home/kuan/code/test/hybrid/libddbg/include/libddbg/libddbg.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libparam/include/libparam/libparam.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libparam/include/libparam/bitvector.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libddbg/include/libddbg/libddbg.h \
  modules/modules.h modules/disksim_bus_param.h \
  modules/disksim_bus_stats_param.h modules/disksim_cachedev_param.h \
  modules/disksim_cachemem_param.h modules/disksim_ctlr_param.h \
@@ -39,6 +39,6 @@ disksim_diskcache.o: disksim_diskcache.c disksim_global.h \
  modules/disksim_simpleflash_param.h modules/disksim_stats_param.h \
  modules/disksim_syncset_param.h modules/disksim_synthgen_param.h \
  modules/disksim_synthio_param.h ../diskmodel/dm.h \
- /home/kuan/code/test/hybrid/diskmodel/include/diskmodel/dm_types.h \
+ /home/lab206/MixSSD/disksim-CombFTL/diskmodel/include/diskmodel/dm_types.h \
  /usr/include/inttypes.h /usr/include/stdint.h \
  /usr/include/bits/wchar.h

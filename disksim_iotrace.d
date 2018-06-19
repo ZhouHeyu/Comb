@@ -1,5 +1,5 @@
 disksim_iotrace.o: disksim_iotrace.c config.h inline.h \
- /home/kuan/code/test/hybrid/libparam/include/libparam/libparam.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libparam/include/libparam/libparam.h \
  /usr/include/stdio.h /usr/include/features.h \
  /usr/include/bits/predefs.h /usr/include/sys/cdefs.h \
  /usr/include/bits/wordsize.h /usr/include/gnu/stubs.h \
@@ -10,8 +10,8 @@ disksim_iotrace.o: disksim_iotrace.c config.h inline.h \
  /usr/lib/gcc-lib/i486-linux-gnu/2.95.4/include/stdarg.h \
  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
  /usr/include/assert.h \
- /home/kuan/code/test/hybrid/libparam/include/libparam/bitvector.h \
- /home/kuan/code/test/hybrid/libddbg/include/libddbg/libddbg.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libparam/include/libparam/bitvector.h \
+ /home/lab206/MixSSD/disksim-CombFTL/libddbg/include/libddbg/libddbg.h \
  modules/modules.h modules/disksim_bus_param.h \
  modules/disksim_bus_stats_param.h modules/disksim_cachedev_param.h \
  modules/disksim_cachemem_param.h modules/disksim_ctlr_param.h \
