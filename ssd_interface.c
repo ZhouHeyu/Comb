@@ -1103,7 +1103,7 @@ void Hit_SL_CMT_Entry(int blkno,int operation,int region_flag)
 
 void Hit_SCMT_Entry(int blkno,int operation,int region_flag)
 {
-		int min_real,pos=-1
+		int min_real,pos=-1,pos_2nd=-1;
 		ache_scmt_hit++;
 		MLC_opagemap[blkno].map_age++;
 		if(MLC_opagemap[blkno].map_age >1){
