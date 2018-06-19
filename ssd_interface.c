@@ -108,9 +108,10 @@ double sum_of_response_time = 0.0;
 unsigned int total_num_of_req = 0;
 
 
-//callFsim-fenzhuang
+//callFsim-封装的函数
   void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
-
+// hit CMT-entry
+void Hit_CMT_Entry(int blkno,int operation,int region_flag)
 /***********************************************************************
   Mapping table
  ***********************************************************************/
@@ -708,72 +709,55 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 						case 3:
 									// SDFTL scheme
 									{
-					
-															   if(flash_flag==0){
-																  send_flash_request(blkno*4, 4, operation, 1,0,region_flag); 
-																  blkno++;
-															   }
-															   else{
+											//如果写在SLC上
+											   if(flash_flag==0){
+												  send_flash_request(blkno*4, 4, operation, 1,0,region_flag); 
+												  blkno++;
+											   }
+											   else{
+																   //写在MLC上
 																  if (itemcount<itemcount_threshold)//利用trace数进行判断
 																  { 
-																	  rqst_cnt++;
-																	  if(operation==0){
-																		  write_count++;//用于计算总的写请求数    
-																	  }
-																	  else
-																		read_count++;
+																		  rqst_cnt++;
+																		  if(operation==0){
+																			  write_count++;//用于计算总的写请求数    
+																		  }
+																		  else
+																			read_count++;
 																  }
-																  else
-																  {
-																	  if (itemcount==itemcount_threshold)
-																 {
-																  request_cnt = rqst_cnt;
-																  write_cnt = write_count;
-																  read_cnt = read_count;
-																  write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
-																  read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列 
-																  
-																  average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
+																  else{
+																	  
+																			  if (itemcount==itemcount_threshold){
+																						  request_cnt = rqst_cnt;
+																						  write_cnt = write_count;
+																						  read_cnt = read_count;
+																						  write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
+																						  read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列 
+																						  
+																						  average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
 
-																	MAP_REAL_MAX_ENTRIES=4096;
-																	real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
-																	//MAP_GHOST_MAX_ENTRIES=822;
-																	//ghost_arr=(int *)malloc(sizeof(int)*MAP_GHOST_MAX_ENTRIES);
-																	MAP_SEQ_MAX_ENTRIES=1536; 
-																	seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES); 
-																	MAP_SECOND_MAX_ENTRIES=2560; 
-																	second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES); 
-																	init_arr();                             
-																 }
-																  rqst_cnt++;
-																//duchenjie:no ghost, hit CMT
-															  if (MLC_opagemap[blkno].map_status == MAP_REAL)
-															  {
-																	cache_cmt_hit++;
-
-																		MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;//LRU
-																		real_max = blkno;
-
-																	  if(MLC_opagemap[real_max].map_age <= MLC_opagemap[blkno].map_age)
-																	  {
-																		real_max = blkno;
-																	  }  
-																	
-																  if(operation==0){
-																	write_count++;
-																	MLC_opagemap[blkno].update = 1;
-																  }
-																  else
-																	 read_count++;
-
-																  send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
-																  blkno++;
-																  continue;
-															  }
-															  
-															//2.shzb:请求在连续缓存中
-															else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
-															{
+																							MAP_REAL_MAX_ENTRIES=4096;
+																							real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
+																							//MAP_GHOST_MAX_ENTRIES=822;
+																							//ghost_arr=(int *)malloc(sizeof(int)*MAP_GHOST_MAX_ENTRIES);
+																							MAP_SEQ_MAX_ENTRIES=1536; 
+																							seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES); 
+																							MAP_SECOND_MAX_ENTRIES=2560; 
+																							second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES); 
+																							init_arr();                             
+																				}
+																				rqst_cnt++;
+																				//请求在CMT中
+																			  if (MLC_opagemap[blkno].map_status == MAP_REAL)
+																			  {
+																						Hit_CMT_Entry(blkno,operation,region_flag);
+																					  blkno++;
+																					  continue;
+																			  }
+																				  
+																			//2.shzb:请求在连续缓存中
+																		else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
+																		{
 														//			cache_hit++;
 																	if(MLC_opagemap[blkno].map_status == MAP_SEQ){
 																			cache_scmt_hit++;
@@ -854,6 +838,13 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 																  blkno++;
 																  continue;
 															}
+															
+															
+															
+															
+															
+															
+															
 															//3.shzb:连续请求加入连续缓存中
 															else if((cnt+1) >= THRESHOLD)//shzb:THRESHOLD=2,表示大于或等于4KB的请求，当作连续请求来处理。
 															{
@@ -1140,5 +1131,26 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 						*bcount = (secno + scount -1)/4 - (secno)/4 + 1;
 						break;		
 		 }
+}
+
+// hit CMT-entry
+void Hit_CMT_Entry(int blkno,int operation,int region_flag)
+{
+			cache_cmt_hit++;
+			MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;//LRU
+			real_max = blkno;
+
+		  if(MLC_opagemap[real_max].map_age <= MLC_opagemap[blkno].map_age){
+				real_max = blkno;
+		  }  
+		
+		  if(operation==0){
+				write_count++;
+				MLC_opagemap[blkno].update = 1;
+		  }
+		  else
+				read_count++;
+				
+		  send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
 }
 
