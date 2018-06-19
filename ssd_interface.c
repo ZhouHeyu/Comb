@@ -107,11 +107,15 @@ double sum_of_service_time = 0.0;
 double sum_of_response_time = 0.0;
 unsigned int total_num_of_req = 0;
 
+/***********************************************************************
+ * 											callFsim-封装的函数
+ * **********************************************************************/
 
-//callFsim-封装的函数
-  void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
+ void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
 // hit CMT-entry
 void Hit_CMT_Entry(int blkno,int operation,int region_flag);
+void Hit_SL_CMT_Entry(int blkno,int operation,int region_flag);
+void Hit_SCMT_Entry(int blkno,int operation,int region_flag);
 /***********************************************************************
   Mapping table
  ***********************************************************************/
@@ -754,90 +758,19 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 																					  blkno++;
 																					  continue;
 																			  }
-																				  
 																			//2.shzb:请求在连续缓存中
-																		else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
-																		{
-														//			cache_hit++;
-																	if(MLC_opagemap[blkno].map_status == MAP_SEQ){
-																			cache_scmt_hit++;
-																			MLC_opagemap[blkno].map_age++;
-																			if(MLC_opagemap[blkno].map_age >1){
-																			//把该映射项加载到real中
-																			if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0){  
-																				min_real = MLC_find_real_min();
-																				if(MLC_opagemap[min_real].update == 1)
-																			   {
-																					if((MAP_SECOND_MAX_ENTRIES-MAP_SECOND_NUM_ENTRIES) ==0){
-																						 MC=0;
-																						find_MC_entries(second_arr,MAP_SECOND_MAX_ENTRIES);
-																						send_flash_request(maxentry*8,8,1,2,1,region_flag);
-																						translation_read_num++;
-																						send_flash_request(maxentry*8,8,0,2,1,region_flag);
-																						translation_write_num++;
-																						
-																						for(indexold = 0;indexold < MAP_SECOND_MAX_ENTRIES; indexold++){
-																								if(((second_arr[indexold]-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE) == maxentry){
-																									MLC_opagemap[second_arr[indexold]].update = 0;
-																									MLC_opagemap[second_arr[indexold]].map_status = MAP_INVALID;
-																									MLC_opagemap[second_arr[indexold]].map_age = 0;
-																									second_arr[indexold]=0;
-																									MAP_SECOND_NUM_ENTRIES--;
-																								}
-																						}
+																			else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
+																			{
+																					//			cache_hit++;
+																					if(MLC_opagemap[blkno].map_status == MAP_SEQ){
+																							Hit_SCMT_Entry(blkno,operation,region_flag);
 																					}
-																					MLC_opagemap[min_real].map_status = MAP_SECOND;
-																					pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
-																					real_arr[pos]=0;
-																					MAP_REAL_NUM_ENTRIES--;
-																					pos_2nd = find_free_pos(second_arr,MAP_SECOND_MAX_ENTRIES);
-																					second_arr[pos_2nd]=0;
-																					second_arr[pos_2nd]=min_real;
-																					MAP_SECOND_NUM_ENTRIES++;
-																					if(MAP_SECOND_NUM_ENTRIES > MAP_SECOND_MAX_ENTRIES){
-																						printf("The second cache is overflow!\n");
-																						exit(0);
+																					else {  
+																							Hit_SL_CMT_Entry(blkno,operation,region_flag);
 																					}
-
-																			   }
-																				else{
-																							 pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
-																							 real_arr[pos]=0;
-																							 MLC_opagemap[min_real].map_status = MAP_INVALID;
-																							MLC_opagemap[min_real].map_age = 0;
-																							 MAP_REAL_NUM_ENTRIES--;
-																				}
-
+																					  blkno++;
+																					  continue;
 																			}
-																				MLC_opagemap[blkno].map_status = MAP_REAL;
-																				MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
-																				real_max = blkno;      
-																				pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
-																				real_arr[pos] = 0;
-																				real_arr[pos] = blkno;
-																				MAP_REAL_NUM_ENTRIES++;
-																			}
-																			
-																			
-																	}
-																	else {  
-																			//在SL-CMT中
-																			cache_slcmt_hit++;
-																			//opagemap[blkno].map_age++;
-																	}
-																	
-																	
-																  if(operation==0){
-																	write_count++;
-																	MLC_opagemap[blkno].update = 1;
-																  }
-																  else
-																	 read_count++;
-
-																  send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
-																  blkno++;
-																  continue;
-															}
 															
 															
 															
@@ -1153,4 +1086,93 @@ void Hit_CMT_Entry(int blkno,int operation,int region_flag)
 				
 		  send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
 }
+
+//hit SL_CMT-entry
+void Hit_SL_CMT_Entry(int blkno,int operation,int region_flag)
+{
+	cache_slcmt_hit++;
+	  if(operation==0){
+			write_count++;
+			MLC_opagemap[blkno].update = 1;
+	  }
+	  else
+		 read_count++;
+
+	  send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
+}
+
+void Hit_SCMT_Entry(int blkno,int operation,int region_flag)
+{
+		int min_real,pos=-1
+		ache_scmt_hit++;
+		MLC_opagemap[blkno].map_age++;
+		if(MLC_opagemap[blkno].map_age >1){
+				//把该映射项加载到real中,CMT is Full
+						if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0){  
+							min_real = MLC_find_real_min();
+							if(MLC_opagemap[min_real].update == 1)
+							{
+									if((MAP_SECOND_MAX_ENTRIES-MAP_SECOND_NUM_ENTRIES) ==0){
+											 MC=0;
+											find_MC_entries(second_arr,MAP_SECOND_MAX_ENTRIES);
+											send_flash_request(maxentry*8,8,1,2,1,region_flag);
+											translation_read_num++;
+											send_flash_request(maxentry*8,8,0,2,1,region_flag);
+											translation_write_num++;
+						
+											for(indexold = 0;indexold < MAP_SECOND_MAX_ENTRIES; indexold++){
+												
+													if(((second_arr[indexold]-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE) == maxentry){
+														MLC_opagemap[second_arr[indexold]].update = 0;
+														MLC_opagemap[second_arr[indexold]].map_status = MAP_INVALID;
+														MLC_opagemap[second_arr[indexold]].map_age = 0;
+														second_arr[indexold]=0;
+														MAP_SECOND_NUM_ENTRIES--;
+													}
+												}
+											
+									}
+									MLC_opagemap[min_real].map_status = MAP_SECOND;
+									pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
+									real_arr[pos]=0;
+									MAP_REAL_NUM_ENTRIES--;
+									pos_2nd = find_free_pos(second_arr,MAP_SECOND_MAX_ENTRIES);
+									second_arr[pos_2nd]=0;
+									second_arr[pos_2nd]=min_real;
+									MAP_SECOND_NUM_ENTRIES++;
+									
+									if(MAP_SECOND_NUM_ENTRIES > MAP_SECOND_MAX_ENTRIES){
+										printf("The second cache is overflow!\n");
+										exit(0);
+									}
+					}else{
+								pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
+								real_arr[pos]=0;
+								MLC_opagemap[min_real].map_status = MAP_INVALID;
+								MLC_opagemap[min_real].map_age = 0;
+								MAP_REAL_NUM_ENTRIES--;
+						}
+
+				}
+			
+						MLC_opagemap[blkno].map_status = MAP_REAL;
+						MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
+						real_max = blkno;      
+						pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
+						real_arr[pos] = 0;
+						real_arr[pos] = blkno;
+						MAP_REAL_NUM_ENTRIES++;
+			}
+
+			//数据页写入读取更新，统计
+			if(operation==0){
+					write_count++;
+					MLC_opagemap[blkno].update = 1;
+			}
+			else
+					read_count++;
+					
+			send_flash_request(blkno*8, 8, operation, 1,1,region_flag); 
+}  
+
 
