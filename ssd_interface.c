@@ -1126,7 +1126,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 						if(flash_flag==0){ 
 						   *blkno = secno / 4;
 						   *bcount = (secno + scount -1)/4 - (secno)/4 + 1;
-						   SLC_write_page_count+=bcount;
+						   SLC_write_page_count+=(*bcount);
 						}
 						else{
 						   *blkno = secno / 8;
