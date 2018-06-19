@@ -665,7 +665,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 			  }
 		  }
 			  
-		SecnoToPageno(secno,scount,&blkno,&bcount,flash_flag)
+		SecnoToPageno(secno,scount,&blkno,&bcount,flash_flag);
 
 		  cnt = bcount;
 		  total_request_size = total_request_size + bcount;
