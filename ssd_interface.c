@@ -107,6 +107,10 @@ double sum_of_service_time = 0.0;
 double sum_of_response_time = 0.0;
 unsigned int total_num_of_req = 0;
 
+
+//callFsim-fenzhuang
+  void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
+
 /***********************************************************************
   Mapping table
  ***********************************************************************/
@@ -640,65 +644,37 @@ int youkim_flag1=0;
 
 double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int region_flag)
 {
-  double delay; 
-  int bcount;
-  unsigned int blkno; // pageno for page based FTL
-  int cnt,z; int min_real;
-  int pos=-1,pos_real=-1,pos_ghost=-1,pos_2nd=-1;
-  
-  if(ftl_type == 1){ }
+		  double delay; 
+		  int bcount;
+		  unsigned int blkno; // pageno for page based FTL
+		  int cnt,z; int min_real;
+		  int pos=-1,pos_real=-1,pos_ghost=-1,pos_2nd=-1;
+		  
+		  if(ftl_type == 1){ }
 
-  if(ftl_type == 3) {
-      
-      MLC_page_num_for_2nd_map_table = (MLC_opagemap_num / MLC_MAP_ENTRIES_PER_PAGE);
-      if(youkim_flag1 == 0 ) {
-        youkim_flag1 = 1;
-        init_arr();
-      }
+		  if(ftl_type == 3) {
+			  
+			  MLC_page_num_for_2nd_map_table = (MLC_opagemap_num / MLC_MAP_ENTRIES_PER_PAGE);
+			  if(youkim_flag1 == 0 ) {
+				youkim_flag1 = 1;
+				init_arr();
+			  }
 
-      if((MLC_opagemap_num % MLC_MAP_ENTRIES_PER_PAGE) != 0){
-        MLC_page_num_for_2nd_map_table++;
-      }
-  }
-      
-  // page based FTL 
-  if(ftl_type == 1 ) { 
-    blkno = secno / 4;
-    bcount = (secno + scount -1)/4 - (secno)/4 + 1;
-  }  
-  // block based FTL 
-  else if(ftl_type == 2){
-    blkno = secno/4;
-    bcount = (secno + scount -1)/4 - (secno)/4 + 1;       
-  }
-  // o-pagemap scheme
-  else if(ftl_type == 3 ) {
-    if(flash_flag==0){ 
-       blkno = secno / 4;
-       bcount = (secno + scount -1)/4 - (secno)/4 + 1;
-       SLC_write_page_count+=bcount;
-    }
-    else{
-      
-       blkno = secno / 8;
-       blkno += MLC_page_num_for_2nd_map_table;
-       bcount = (secno + scount -1)/8 - (secno)/8 + 1;
-    }
-  }  
-  // FAST scheme
-  else if(ftl_type == 4){
-    blkno = secno/4;
-    bcount = (secno + scount -1)/4 - (secno)/4 + 1;
-  }
+			  if((MLC_opagemap_num % MLC_MAP_ENTRIES_PER_PAGE) != 0){
+				MLC_page_num_for_2nd_map_table++;
+			  }
+		  }
+			  
+		SecnoToPageno(secno,scount,&blkno,&bcount,flash_flag)
 
-  cnt = bcount;
-  total_request_size = total_request_size + bcount;
-  if (bcount>2)
-  {
-      big_request_entry++;
-      big_request_count+= bcount; 
-  }
-
+		  cnt = bcount;
+		  total_request_size = total_request_size + bcount;
+		  if (bcount>2)
+		  {
+			  big_request_entry++;
+			  big_request_count+= bcount; 
+		  }
+		  
 			//write/read
 			//case 0:
 			//case 1:
@@ -1130,4 +1106,39 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 			  return delay;
 }
 
+
+/******************************************************************/
+  void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag)
+ {
+		 switch(ftl_type){
+			 case 1:
+						// page based FTL 
+						*blkno = secno / 4;
+						*bcount = (secno + scount -1)/4 - (secno)/4 + 1;
+						break;
+			case 2:
+						// block based FTL 
+						*blkno = secno/4;
+						*bcount = (secno + scount -1)/4 - (secno)/4 + 1;      
+						break;
+			case 3:
+						 // o-pagemap scheme
+						if(flash_flag==0){ 
+						   *blkno = secno / 4;
+						   *bcount = (secno + scount -1)/4 - (secno)/4 + 1;
+						   SLC_write_page_count+=bcount;
+						}
+						else{
+						   *blkno = secno / 8;
+						   *blkno += MLC_page_num_for_2nd_map_table;
+						   *bcount = (secno + scount -1)/8 - (secno)/8 + 1;
+						}
+						break;
+			case 4:
+						// FAST scheme
+						*blkno = secno/4;
+						*bcount = (secno + scount -1)/4 - (secno)/4 + 1;
+						break;		
+		 }
+}
 
