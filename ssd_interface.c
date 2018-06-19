@@ -111,7 +111,7 @@ unsigned int total_num_of_req = 0;
 //callFsim-封装的函数
   void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
 // hit CMT-entry
-void Hit_CMT_Entry(int blkno,int operation,int region_flag)
+void Hit_CMT_Entry(int blkno,int operation,int region_flag);
 /***********************************************************************
   Mapping table
  ***********************************************************************/
