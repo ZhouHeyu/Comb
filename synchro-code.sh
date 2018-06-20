@@ -8,6 +8,9 @@ git pull origin old
 #cd ../ to make
 cd ../ ; make
 #if make is ok please to runtest to check code is ok
-cd ./test.release ; . runtest
-#final return to src dir
-cd ../src
+read -p "if make is ok run test file: yes?no?" flag
+if [ $flag == "yes" ] ; then 
+	cd ./test.release ; . runtest
+	#final return to src dir
+	cd ../src
+fi
