@@ -783,35 +783,13 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 																			}
 																			//4. opagemap not in SRAM 
 																			//if map table in SRAM is full
-																			else if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0)
+																			else
 																			{
 																						req_Entry_Miss_SDFTL(blkno,operation,region_flag);
 																						blkno++;
 																						continue;
 																			}
 																			
-																			//无论是否SRAMfull都要将请求的映射关系加载到SARM中去
-																						flash_hit++;
-																						send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
-																						translation_read_num++;
-																						MLC_opagemap[blkno].map_status = MAP_REAL;
-
-																						MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
-																						real_max = blkno;
-
-																						pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);//因为real_arr已经被定义成指针变量，调用find_free_pos函数时前面不需要加*
-																						real_arr[pos] = 0;
-																						real_arr[pos] = blkno;
-																						MAP_REAL_NUM_ENTRIES++;
-																					  if(operation==0){
-																							write_count++;
-																							MLC_opagemap[blkno].update = 1;
-																						}
-																					  else
-																							read_count++;
-
-																						send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
-																	}
 																	blkno++;
 													}
 				
@@ -1168,32 +1146,32 @@ void pre_load_entry_into_SCMT(int *pageno,int *req_size,int operation,int region
 //req entry not in cache,and req not seq_req
 void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag)
 {
-	int min_real;
-	int pos_2nd=-1,pos=-1;
-	min_real = MLC_find_real_min();
+		int min_real;
+		int pos_2nd=-1,pos=-1;
+		min_real = MLC_find_real_min();
+
+		CMT_Is_Full(region_flag);
 	
-	CMT_Is_Full(region_flag);
-	
-			flash_hit++;
-			send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
-			translation_read_num++;
-			MLC_opagemap[blkno].map_status = MAP_REAL;
+		flash_hit++;
+		send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
+		translation_read_num++;
+		MLC_opagemap[blkno].map_status = MAP_REAL;
 
-			MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
-			real_max = blkno;
+		MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
+		real_max = blkno;
 
-			pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);//因为real_arr已经被定义成指针变量，调用find_free_pos函数时前面不需要加*
-			real_arr[pos] = 0;
-			real_arr[pos] = blkno;
-			MAP_REAL_NUM_ENTRIES++;
-		  if(operation==0){
-				write_count++;
-				MLC_opagemap[blkno].update = 1;
-			}
-		  else
-				read_count++;
+		pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);//因为real_arr已经被定义成指针变量，调用find_free_pos函数时前面不需要加*
+		real_arr[pos] = 0;
+		real_arr[pos] = blkno;
+		MAP_REAL_NUM_ENTRIES++;
+	  if(operation==0){
+			write_count++;
+			MLC_opagemap[blkno].update = 1;
+		}
+	  else
+			read_count++;
 
-			send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
+		send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
 
 	
 }
