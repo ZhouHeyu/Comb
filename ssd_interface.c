@@ -110,7 +110,7 @@ unsigned int total_num_of_req = 0;
 /***********************************************************************
  * 											callFsim-封装的函数
  * **********************************************************************/
-
+ void SDFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag);
  void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
 // hit CMT-entry
 void Hit_CMT_Entry(int blkno,int operation,int region_flag);
