@@ -1172,7 +1172,7 @@ void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag)
 	int pos_2nd=-1,pos=-1;
 	min_real = MLC_find_real_min();
 	
-	CMT_Is_Full(int region_flag);
+	CMT_Is_Full(region_flag);
 	
 			flash_hit++;
 			send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
