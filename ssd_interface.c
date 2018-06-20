@@ -716,87 +716,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 									break;
 						case 3:
 									// SDFTL scheme
-									{
-											//如果写在SLC上
-											   if(flash_flag==0){
-												  send_flash_request(blkno*4, 4, operation, 1,0,region_flag); 
-												  blkno++;
-											   }
-											   else{
-																   //写在MLC上
-																  if (itemcount<itemcount_threshold)//利用trace数进行判断
-																  { 
-																		  rqst_cnt++;
-																		  if(operation==0){
-																			  write_count++;//用于计算总的写请求数    
-																		  }
-																		  else
-																			read_count++;
-																  }
-																  else{
-																	  
-																			  if (itemcount==itemcount_threshold){
-																						  request_cnt = rqst_cnt;
-																						  write_cnt = write_count;
-																						  read_cnt = read_count;
-																						  write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
-																						  read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列 
-																						  
-																						  average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
-
-																							MAP_REAL_MAX_ENTRIES=4096;
-																							real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
-																							//MAP_GHOST_MAX_ENTRIES=822;
-																							//ghost_arr=(int *)malloc(sizeof(int)*MAP_GHOST_MAX_ENTRIES);
-																							MAP_SEQ_MAX_ENTRIES=1536; 
-																							seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES); 
-																							MAP_SECOND_MAX_ENTRIES=2560; 
-																							second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES); 
-																							init_arr();                             
-																				}
-																				rqst_cnt++;
-																				//请求在CMT中
-																			  if (MLC_opagemap[blkno].map_status == MAP_REAL)
-																			  {
-																						Hit_CMT_Entry(blkno,operation,region_flag);
-																					  blkno++;
-																					  continue;
-																			  }
-																			//2.shzb:请求在连续缓存中
-																			else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
-																			{
-																					//			cache_hit++;
-																					if(MLC_opagemap[blkno].map_status == MAP_SEQ){
-																							Hit_SCMT_Entry(blkno,operation,region_flag);
-																					}
-																					else {  
-																							Hit_SL_CMT_Entry(blkno,operation,region_flag);
-																					}
-																					  blkno++;
-																					  continue;
-																			}
-																			//3 判断为连续请求直接加入到SCMT中
-																			else if ((cnt+1)>=THRESHOLD){
-																					//shzb:THRESHOLD=2,表示大于或等于4KB的请求，当作连续请求来处理。
-																					pre_load_entry_into_SCMT(&blkno,&cnt,operation,region_flag);
-																					continue;
-																			}
-																			//4. opagemap not in SRAM 
-																			//if map table in SRAM is full
-																			else
-																			{
-																						req_Entry_Miss_SDFTL(blkno,operation,region_flag);
-																						blkno++;
-																						continue;
-																			}
-																	}
-																			
-																	blkno++;
-													}
-				
-
-						}
-									// SDFTL scheme-end
+									SDFTL_Scheme(&blkno,&cnt,operation,flash_flag,region_flag);
 									break;
 						}//end-switch
 
@@ -813,7 +733,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 }
 
 
-/******************************************************************/
+/************************CallFsim预处理函数**************************/
   void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag)
  {
 		 switch(ftl_type){
@@ -848,6 +768,108 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 		 }
 }
 
+
+/**********************************************************
+ * 								SDFTL  封装的函数
+ * ********************************************************/
+ void SDFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag)
+{
+	//代码封装过程中的中间变量
+	int blkno=(*pageno),cnt=(*req_size);
+	//如果写在SLC上,简单处理直接返回
+	   if(flash_flag==0){
+		  send_flash_request(blkno*4, 4, operation, 1,0,region_flag); 
+		  blkno++;
+		  (*pageno)=blkno;
+		  return ;
+	   }
+	   //写入MLC,执行的是SDFTL的操作
+	   else{
+						   //写在MLC上
+						  if (itemcount<itemcount_threshold)//利用trace数进行判断
+						  { 
+								  rqst_cnt++;
+								  if(operation==0){
+									  write_count++;//用于计算总的写请求数    
+								  }
+								  else
+									read_count++;
+						  }
+						  else{
+							  
+									  if (itemcount==itemcount_threshold){
+												  request_cnt = rqst_cnt;
+												  write_cnt = write_count;
+												  read_cnt = read_count;
+												  write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
+												  read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列 
+												  
+												  average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
+
+													MAP_REAL_MAX_ENTRIES=4096;
+													real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
+													//MAP_GHOST_MAX_ENTRIES=822;
+													//ghost_arr=(int *)malloc(sizeof(int)*MAP_GHOST_MAX_ENTRIES);
+													MAP_SEQ_MAX_ENTRIES=1536; 
+													seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES); 
+													MAP_SECOND_MAX_ENTRIES=2560; 
+													second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES); 
+													init_arr();                             
+										}
+										rqst_cnt++;
+										//请求在CMT中
+									  if (MLC_opagemap[blkno].map_status == MAP_REAL)
+									  {
+												Hit_CMT_Entry(blkno,operation,region_flag);
+											  blkno++;
+											  continue;
+									  }
+									//2.shzb:请求在连续缓存中
+									else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
+									{
+											//			cache_hit++;
+											if(MLC_opagemap[blkno].map_status == MAP_SEQ){
+													Hit_SCMT_Entry(blkno,operation,region_flag);
+											}
+											else {  
+													Hit_SL_CMT_Entry(blkno,operation,region_flag);
+											}
+											  blkno++;
+											  continue;
+									}
+									//3 判断为连续请求直接加入到SCMT中
+									else if ((cnt+1)>=THRESHOLD){
+											//shzb:THRESHOLD=2,表示大于或等于4KB的请求，当作连续请求来处理。
+											pre_load_entry_into_SCMT(&blkno,&cnt,operation,region_flag);
+											continue;
+									}
+									//4. opagemap not in SRAM 
+									//if map table in SRAM is full
+									else
+									{
+												req_Entry_Miss_SDFTL(blkno,operation,region_flag);
+												blkno++;
+												continue;
+									}
+							}
+									
+							blkno++;
+			}
+			
+			//注意传入值更新
+			(*req_size)=cnt;
+			(*pageno)=blkno;
+			
+			
+				
+	
+}
+ 
+ 
+ 
+ /*********************************************
+  * 							SDFTL执行封装的函数
+  * ******************************************/
 // hit CMT-entry
 void Hit_CMT_Entry(int blkno,int operation,int region_flag)
 {
@@ -1150,7 +1172,7 @@ void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag)
 		int min_real;
 		int pos_2nd=-1,pos=-1;
 		min_real = MLC_find_real_min();
-
+//    第一次加载的数据页映射项新加载到CMT中,所以需要检测对应的CMT是否满
 		CMT_Is_Full(region_flag);
 	
 		flash_hit++;
