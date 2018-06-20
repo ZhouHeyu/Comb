@@ -822,7 +822,6 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 									  {
 												Hit_CMT_Entry(blkno,operation,region_flag);
 											  blkno++;
-											  continue;
 									  }
 									//2.shzb:请求在连续缓存中
 									else if((MLC_opagemap[blkno].map_status == MAP_SEQ)||(MLC_opagemap[blkno].map_status == MAP_SECOND))
@@ -835,13 +834,11 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 													Hit_SL_CMT_Entry(blkno,operation,region_flag);
 											}
 											  blkno++;
-											  continue;
 									}
 									//3 判断为连续请求直接加入到SCMT中
 									else if ((cnt+1)>=THRESHOLD){
 											//shzb:THRESHOLD=2,表示大于或等于4KB的请求，当作连续请求来处理。
 											pre_load_entry_into_SCMT(&blkno,&cnt,operation,region_flag);
-											continue;
 									}
 									//4. opagemap not in SRAM 
 									//if map table in SRAM is full
@@ -849,7 +846,6 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 									{
 												req_Entry_Miss_SDFTL(blkno,operation,region_flag);
 												blkno++;
-												continue;
 									}
 							}
 									
