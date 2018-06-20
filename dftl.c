@@ -57,38 +57,50 @@ extern double delay2;
 int map_pg_read=0;
 extern int RW_flag;
 int migration_count=0;
-void SLC_data_move(int blk){//cold to MLC
+
+
+/*
+ * 输入参数的块就是要转移回写的SLC目标块,块中的数据页按照N次原则,采用是否回写MLC还是写回到棱块中
+*/
+void SLC_data_move(int blk)
+{
+	//cold to MLC
      int i,valid_flag,valid_sect_num;
      int blkno,bcount,b;
      double delay3;
      _u32 victim_blkno;
      _u32 copy_lsn[S_SECT_NUM_PER_PAGE];
-
+//遍历一个块中所有页的状态,选择应该是warm为不快
      for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
-        
-
+		 
          valid_flag=SLC_nand_oob_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE));
          if(valid_flag==1){
-            valid_sect_num=SLC_nand_page_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE),copy_lsn,1);
-            ASSERT(valid_sect_num==4);
+			 //如果是有效数据页,则将页的信息读取到copy_lsn中
+				valid_sect_num=SLC_nand_page_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE),copy_lsn,1);
+				ASSERT(valid_sect_num==4);
            //  if(RW_flag==0){
-				        if(SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count<2){
-                //  printf("I am NO.1\n");
-									SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=S_BLK_PAGE_NO_SECT(S_SECTOR(free_cold_blk_no,free_cold_page_no));
-						      SLC_nand_page_write(S_SECTOR(free_cold_blk_no,free_cold_page_no)&(~S_OFF_MASK_SECT),copy_lsn,1,1);
-						      free_cold_page_no+=S_SECT_NUM_PER_PAGE;
-									SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count+=1;
-								}else{
-                 // printf("I am NO.2\n");
-						      SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=-1;
-						      SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count=0;
-						      blkno=(S_BLK_PAGE_NO_SECT(copy_lsn[0])*4)/8;
-						      blkno*=8;
-						      bcount=8;
-                  migration_count++;
-						      delay3=callFsim(blkno,bcount,0,1,0);
-						      delay2=delay2+delay3;
-				        }
+				 //判断数据页访问次数是否到达阈值N=2
+				if(SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count<2){
+						//  printf("I am NO.1\n");
+						//没有达到阈值N就将数据页移动到当前SLC空闲块的空闲页(free_cold_blk_no,free_cold_page_no)
+						SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=S_BLK_PAGE_NO_SECT(S_SECTOR(free_cold_blk_no,free_cold_page_no));
+						SLC_nand_page_write(S_SECTOR(free_cold_blk_no,free_cold_page_no)&(~S_OFF_MASK_SECT),copy_lsn,1,1);
+						free_cold_page_no+=S_SECT_NUM_PER_PAGE;
+						SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count+=1;
+				}else{
+						// printf("I am NO.2\n");
+						//如果达到给定阈值N,将数据页转移到MLC中,
+					  SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=-1;
+					  SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].count=0;
+					  //存的数据就是lsn,这里强制页对齐了
+					  blkno=(S_BLK_PAGE_NO_SECT(copy_lsn[0])*4)/8;
+					  blkno*=8;
+					  bcount=8;
+						migration_count++;
+						//operation =0 flash_flag=1,region_flag=0,直接调用callFsim回写
+					  delay3=callFsim(blkno,bcount,0,1,0);
+					  delay2=delay2+delay3;
+				}
 						/*	}else{
                   printf("I am NO.3\n");
                   SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=-1;
@@ -101,10 +113,15 @@ void SLC_data_move(int blk){//cold to MLC
               }*/
          }       
      }
+     //调用底层的块擦除函数擦除,和普通的nand_erase擦除操作一样
      victim_blkno=blk; 
      cold_nand_erase(victim_blkno);    
 }
 
+
+/*
+ *  该函数将warm区的数据块移动到Cold块区域,当cold空闲块不够时会选择空闲块,但是因为循环队列所有while的处理情况有点复杂繁琐
+ */
 void warm_to_cold(int blk){ //warm to cold
      int i,valid_flag,valid_sect_num;
      int blkno,bcount,b;
@@ -112,9 +129,11 @@ void warm_to_cold(int blk){ //warm to cold
      _u32 copy_lsn[S_SECT_NUM_PER_PAGE];
     
      for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
-				 while(free_cold_page_no >= S_SECT_NUM_PER_BLK)//if (free_cold_page_no >= S_SECT_NUM_PER_BLK) 
+		 //上述处理的是当SLC的当前块cold块写满,寻找新的空闲cold块
+		 while(free_cold_page_no >= S_SECT_NUM_PER_BLK)//if (free_cold_page_no >= S_SECT_NUM_PER_BLK) 
          {
             free_cold_page_no = 0;  
+            //因为SLC采用循环队列,cold_head可能跑到hot_head前面
             if((cold_head-SLC_nand_blk)<4092&&(cold_head-SLC_nand_blk)>=(cold_tail-SLC_nand_blk))//这里有问题了，如果两者很接近的时候 3代表4096  5 代表8192  &&(tail-SLC_nand_blk)<9
             {           
               cold_head++;
@@ -141,6 +160,7 @@ void warm_to_cold(int blk){ //warm to cold
              /*  printf("cold第0种情况：\n");
                printf("cold头指针＝%d\n",(cold_head-SLC_nand_blk));
                printf("cold尾指针＝%d\n",(cold_tail-SLC_nand_blk));*/
+               //cold_tail到达数组阈值的尾部,重新置位到3072上
                if((cold_tail-SLC_nand_blk)==4096){
                   cold_tail=&SLC_nand_blk[3072];
                 /*  printf("cold第7种情况：\n");
@@ -183,11 +203,13 @@ void warm_to_cold(int blk){ //warm to cold
          printf("\n");*/
          
        }        
+       // 新的冷块分配完成
          valid_flag=SLC_nand_oob_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE));
          if(valid_flag==1){
             valid_sect_num=SLC_nand_page_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE),copy_lsn,1);
             ASSERT(valid_sect_num==4);
             SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[0])].ppn=S_BLK_PAGE_NO_SECT(S_SECTOR(free_cold_blk_no,free_cold_page_no));
+            //region_flag=1写入到冷区
             SLC_nand_page_write(S_SECTOR(free_cold_blk_no,free_cold_page_no)&(~S_OFF_MASK_SECT),copy_lsn,1,1);
             free_cold_page_no+=S_SECT_NUM_PER_PAGE;
          }
@@ -195,6 +217,8 @@ void warm_to_cold(int blk){ //warm to cold
      victim_blkno=blk; 
      SLC_nand_erase(victim_blkno);    
 }
+
+
 _u32 SLC_opm_gc_cost_benefit()
 {
   int max_cb = 0;
@@ -927,6 +951,10 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
 
   return sect_num;
 }
+
+
+//数据页或翻译页写入到MLC中,因为MLC没有冷区和热区之分,所以没有region_flag输入
+//写入可能是翻译页mapdir_flag==2,也可能是数据页
 size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)  
 {
   int i;

@@ -51,6 +51,8 @@ _u32 pm_gc_cost_benefit()
   return max_blk;
 }
 
+
+// mapdir_flag=2读取的是映射页
 size_t pm_read(sect_t lsn, sect_t size, int mapdir_flag)
 {
   int i;
