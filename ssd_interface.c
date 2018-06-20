@@ -781,36 +781,15 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 																					pre_load_entry_into_SCMT(&blkno,&cnt,operation,region_flag);
 																					continue;
 																			}
+																			//4. opagemap not in SRAM 
+																			//if map table in SRAM is full
+																			else if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0)
+																			{
+																						req_Entry_Miss_SDFTL(blkno,operation,region_flag);
+																			}
 
-															  //4. opagemap not in SRAM 
-																//if map table in SRAM is full
-																else if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0)
-																{
-																			req_Entry_Miss_SDFTL(blkno,operation,region_flag);
-																}
-
-																		flash_hit++;
-																		send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
-																		translation_read_num++;
-																		MLC_opagemap[blkno].map_status = MAP_REAL;
-
-																		MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
-																		real_max = blkno;
-																
-																		pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);//因为real_arr已经被定义成指针变量，调用find_free_pos函数时前面不需要加*
-																		real_arr[pos] = 0;
-																		real_arr[pos] = blkno;
-																		MAP_REAL_NUM_ENTRIES++;
-																	  if(operation==0){
-																			write_count++;
-																			MLC_opagemap[blkno].update = 1;
-																		}
-																	  else
-																			read_count++;
-
-																		send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
-																  }
-																 blkno++;
+																	}
+																	blkno++;
 													}
 				
 
@@ -1214,5 +1193,27 @@ void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag)
 		MLC_opagemap[min_real].map_age = 0;
 		MAP_REAL_NUM_ENTRIES--;
 	}
+	
+			flash_hit++;
+			send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
+			translation_read_num++;
+			MLC_opagemap[blkno].map_status = MAP_REAL;
+
+			MLC_opagemap[blkno].map_age = MLC_opagemap[real_max].map_age + 1;
+			real_max = blkno;
+
+			pos = find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);//因为real_arr已经被定义成指针变量，调用find_free_pos函数时前面不需要加*
+			real_arr[pos] = 0;
+			real_arr[pos] = blkno;
+			MAP_REAL_NUM_ENTRIES++;
+		  if(operation==0){
+				write_count++;
+				MLC_opagemap[blkno].update = 1;
+			}
+		  else
+				read_count++;
+
+			send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
+
 	
 }
