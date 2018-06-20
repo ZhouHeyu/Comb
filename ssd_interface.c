@@ -789,6 +789,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 																						blkno++;
 																						continue;
 																			}
+																	}
 																			
 																	blkno++;
 													}
