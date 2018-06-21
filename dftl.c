@@ -70,7 +70,7 @@ void SLC_data_move(int blk)
      double delay3;
      _u32 victim_blkno;
      _u32 copy_lsn[S_SECT_NUM_PER_PAGE];
-//遍历一个块中所有页的状态,选择应该是warm为不快
+  //遍历一个块中所有页的状态,选择应该是warm为不快
      for(i=0;i<S_PAGE_NUM_PER_BLK;i++){
 		 
          valid_flag=SLC_nand_oob_read(S_SECTOR(blk,i*S_SECT_NUM_PER_PAGE));
@@ -218,7 +218,9 @@ void warm_to_cold(int blk){ //warm to cold
      SLC_nand_erase(victim_blkno);    
 }
 
-
+/* 垃圾回收时选择回收块
+*  该函数选择SLC中无效页最多的块进行回收(该块不可以是当前正在写入的空闲块)
+*/
 _u32 SLC_opm_gc_cost_benefit()
 {
   int max_cb = 0;
@@ -245,6 +247,7 @@ _u32 SLC_opm_gc_cost_benefit()
   return max_blk;
 }
 
+//和SLC_opm_gc_cost_benefit的选择无效块的方式一样,也基于贪心原则选择最大无效页的块
 _u32 MLC_opm_gc_cost_benefit()
 {
   int max_cb = 0;
@@ -271,6 +274,8 @@ _u32 MLC_opm_gc_cost_benefit()
   return max_blk;
 }
 
+
+//页的读取包含了数据页和翻译页的读取操作,map_flag=2为翻译页读取
 size_t opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 {
   int i;
@@ -290,6 +295,8 @@ size_t opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 
   sect_num = (size < SECT_NUM_PER_PAGE) ? size : SECT_NUM_PER_PAGE;
 
+  // 关于页的读取,首先得找到映射关系,实际的映射关系是
+  // 数据页在 SLC_opagemap[lpn]=ppn即为映射关系;翻译页mapdir[lpn]=ppn,即为翻译页的映射关系
   if(mapdir_flag == 2){
     s_psn = mapdir[lpn].ppn * SECT_NUM_PER_PAGE;
   }
@@ -310,6 +317,9 @@ size_t opm_read(sect_t lsn, sect_t size, int mapdir_flag)
 
   return sect_num;
 }
+
+
+//和opm_read的代码操作一样,opagemap换成了SLC_opagemap[lpn],函数输入的第四个参数region_flag并没有处理
 size_t SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
 {
   int i;
@@ -349,6 +359,9 @@ size_t SLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
 
   return sect_num;
 }
+
+//和opm_read的代码操作一样,opagemap换成了SLC_opagemap[lpn],函数输入的第四个参数region_flag并没有处理
+// mapdir也换成了MLC_mapdir
 size_t MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
 {
   int i;
@@ -389,10 +402,15 @@ size_t MLC_opm_read(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
   return sect_num;
 }
 
+// 该函数的调用是从SLC的空闲块中选择一个块作为当前的写入块
+// small 为1表示为 翻译块,samll为0表示为数据块,mapdir_flag在此函数没有任何作用
+// 调用该函数如果当前块没写完返回0,写完调用新的块返回-1
 int SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 {
   if (free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK) {
 
+  //  这里需要注意nand_get_SLC_free_blk选择空闲块不是依据磨损均衡选择最小擦除块作为新的写入块
+  //  而是根据循环队列选择 head-SLC_nand_blk=blkno作为新的写入块 
     free_SLC_blk_no[small] = nand_get_SLC_free_blk(1);
 
     free_SLC_page_no[small] = 0;
@@ -402,10 +420,13 @@ int SLC_opm_gc_get_free_blk(int small, int mapdir_flag)
   
   return 0;
 }
+
+// 该函数的调用是从MLC的空闲块中选择一个块作为当前的写入块
+// small 为1表示为 翻译块,samll为0表示为数据块,mapdir_flag在此函数没有任何作用
 int MLC_opm_gc_get_free_blk(int small, int mapdir_flag)
 {
   if (free_MLC_page_no[small] >= M_SECT_NUM_PER_BLK) {
-
+    // 和原来的nand_get_free_blk的方式一样在空闲块中选择擦除次数最小的块作为当前的回收块
     free_MLC_blk_no[small] = nand_get_MLC_free_blk(1);
 
     free_MLC_page_no[small] = 0;
@@ -415,6 +436,9 @@ int MLC_opm_gc_get_free_blk(int small, int mapdir_flag)
   
   return 0;
 }
+
+
+//SLC垃圾回收的函数
 int SLC_opm_gc_run(int small, int mapdir_flag)
 {
   blk_t victim_blk_no;
@@ -425,19 +449,21 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
 
   _u32 copy_lsn[S_SECT_NUM_PER_PAGE], copy[S_SECT_NUM_PER_PAGE];
   _u16 valid_sect_num,  l, s;
-
+  // 确定回收的无效页最多的块(不包括当前正在写的空闲块)
   victim_blk_no = SLC_opm_gc_cost_benefit();//选出无效页最多的块
   memset(copy_lsn, 0xFF, sizeof (copy_lsn));
 
+  // 这两个中间变量s,k
   s = k = S_OFF_F_SECT(free_SLC_page_no[small]);
 
   if(!((s == 0) && (k == 0))){
     printf("s && k should be 0\n");
     exit(0);
   }
- 
+  //  结束上面的宏处理就是确定页内扇区是否对齐
   small = -1;
-
+  // 一次遍历候选块中是翻译块还是数据块并核实是否有穿插(有穿插说明写入有问题)
+  //  回收如果是数据块,DFTL类型的算法要更新对应的map
   for( q = 0; q < S_PAGE_NUM_PER_BLK; q++){
     if(SLC_nand_blk[victim_blk_no].page_status[q] == 1){ //map block
       for( q = 0; q  < 64; q++) {
@@ -462,6 +488,8 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
   ASSERT ( small == 0 || small == 1);
   pos = 0;
   merge_count = 0;
+
+  // 对回收块的数据页进行迁移,注意数据页更新(DFTL类型的翻译项也得更新)
   for (i = 0; i < S_PAGE_NUM_PER_BLK; i++) 
   {
 
@@ -479,31 +507,32 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
           copy_lsn[k] = copy[j];
           k++;
         }
-
+          // 如果当前块有空位返回的benefit为0,反之返回-1
           benefit += SLC_opm_gc_get_free_blk(small, mapdir_flag);
 
           if(SLC_nand_blk[victim_blk_no].page_status[i] == 1)//剔除翻译块
           {                       
+            // 对翻译页更新最主要的是mapdir的映射关系更新,SLC
             mapdir[(copy_lsn[s]/S_SECT_NUM_PER_PAGE)].ppn  = S_BLK_PAGE_NO_SECT(S_SECTOR(free_SLC_blk_no[small], free_SLC_page_no[small]));
             SLC_opagemap[copy_lsn[s]/S_SECT_NUM_PER_PAGE].ppn = S_BLK_PAGE_NO_SECT(S_SECTOR(free_SLC_blk_no[small], free_SLC_page_no[small]));
-
+            // small=0是map,翻译页
             SLC_nand_page_write(S_SECTOR(free_SLC_blk_no[small],free_SLC_page_no[small]) & (~S_OFF_MASK_SECT), copy_lsn, 1, 2);
             free_SLC_page_no[small] += S_SECT_NUM_PER_PAGE;
           }
           else{//剔除的是数据块
 
-
+            // 数据块删除,不但更新自己的ppn,还要更新对应的映射项的更新
             SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[s])].ppn = S_BLK_PAGE_NO_SECT(S_SECTOR(free_SLC_blk_no[small], free_SLC_page_no[small]));
-
+            // samll此时为1,表示数据块写入
             SLC_nand_page_write(S_SECTOR(free_SLC_blk_no[small],free_SLC_page_no[small]) & (~S_OFF_MASK_SECT), copy_lsn, 1, 1);
             free_SLC_page_no[small] += S_SECT_NUM_PER_PAGE;
-
+            // 如果对应的映射关系如果存在CMT中,需要更新,这里做处理时延统计
             if((SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[s])].map_status == MAP_REAL) || (SLC_opagemap[S_BLK_PAGE_NO_SECT(copy_lsn[s])].map_status == MAP_GHOST)) {
               delay_flash_update++;
             }
         
             else {
-  
+              //如果数据页的映射项不存在,将lpn先暂存到map_arr上
               map_arr[pos] = copy_lsn[s];
               pos++;
             } 
@@ -511,13 +540,16 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
     }
   }
   
+  //temp_arr是块大小数据页的数组
   for(i=0;i < S_PAGE_NUM_PER_BLK;i++) {
       temp_arr[i]=-1;
   }
+  // 下面这段代码针对pos非0,即数据块删除时,对应的映射项不存在CMT缓存中,就需要读取MVPN-->MPPN,改写对应的MVPN-->MPPN
   k=0;
   for(i =0 ; i < pos; i++) {
       old_flag = 0;
       for( j = 0 ; j < k; j++) {
+        // 确保后面temp_arr1只存不重复的MVPN号对应的-->ppn
            if(temp_arr[j] == mapdir[((map_arr[i]/S_SECT_NUM_PER_PAGE)/SLC_MAP_ENTRIES_PER_PAGE)].ppn) {
                 if(temp_arr[j] == -1){
                       printf("something wrong");
@@ -527,6 +559,7 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
                 break;
            }
       }
+      //  ((map_arr[i]/S_SECT_NUM_PER_PAGE)/SLC_MAP_ENTRIES_PER_PAGE)换算出来即为MVPN(翻译页逻辑编号)
       if( old_flag == 0 ) {
            temp_arr[k] = mapdir[((map_arr[i]/S_SECT_NUM_PER_PAGE)/SLC_MAP_ENTRIES_PER_PAGE)].ppn;
            temp_arr1[k] = map_arr[i];
@@ -535,8 +568,9 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
       else
         save_count++;
   }
-
+  // 将更新的翻译页重新读写
   for ( i=0; i < k; i++) {
+            // 当前翻译块不够用,选择空闲块写入
             if (free_SLC_page_no[0] >= S_SECT_NUM_PER_BLK) {
                 if((free_SLC_blk_no[0] = nand_get_SLC_free_blk(1)) == -1){
                    printf("we are in big trouble shudnt happen");
@@ -544,7 +578,7 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
 
                 free_SLC_page_no[0] = 0;
             }
-     
+            // 读取翻译页并置旧的无效
             SLC_nand_page_read(temp_arr[i]*S_SECT_NUM_PER_PAGE,copy,1);
 
             for(m = 0; m<S_SECT_NUM_PER_PAGE; m++){
@@ -552,7 +586,7 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
               } 
             nand_stat(SLC_OOB_WRITE);
 
-
+            // 将翻译页信息写入到新的位置,注意mapdir和SLC_opagemap的更新
             mapdir[((temp_arr1[i]/S_SECT_NUM_PER_PAGE)/SLC_MAP_ENTRIES_PER_PAGE)].ppn  = S_BLK_PAGE_NO_SECT(S_SECTOR(free_SLC_blk_no[0], free_SLC_page_no[0]));
             SLC_opagemap[((temp_arr1[i]/S_SECT_NUM_PER_PAGE)/SLC_MAP_ENTRIES_PER_PAGE)].ppn = S_BLK_PAGE_NO_SECT(S_SECTOR(free_SLC_blk_no[0], free_SLC_page_no[0]));
 
@@ -562,6 +596,8 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
 
 
   }
+  // merge_count表示回收块有效页的个数,如果全为无效页,则是一次交换合并
+  // 但这么判断部分合并和全合并,逻辑有点绕,用于FAST的统计,不可作为DFTL的统计信息
   if(merge_count == 0 ) 
     merge_switch_num++;
   else if(merge_count > 0 && merge_count < S_PAGE_NUM_PER_BLK)
@@ -577,6 +613,9 @@ int SLC_opm_gc_run(int small, int mapdir_flag)
 
   return (benefit + 1);
 }
+
+
+// MLC垃圾回收的处理函数 和SLC的SLC_opm_gc_run的代码逻辑一样,只是页对齐方式是4K需要注意
 int MLC_opm_gc_run(int small, int mapdir_flag)
 {
   blk_t victim_blk_no;
@@ -634,7 +673,7 @@ int MLC_opm_gc_run(int small, int mapdir_flag)
         valid_sect_num = MLC_nand_page_read( M_SECTOR(victim_blk_no, i * M_SECT_NUM_PER_PAGE), copy, 1);
 
         merge_count++;
-
+        // 注意页对齐方式是4K
         ASSERT(valid_sect_num == 8);
         k=0;
         for (j = 0; j < valid_sect_num; j++) {
@@ -1043,6 +1082,8 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
 
   return sect_num;
 }
+
+// 释放内存函数,结束
 void opm_end()
 {
   if (SLC_opagemap != NULL) {
@@ -1052,7 +1093,7 @@ void opm_end()
   
   SLC_opagemap_num = 0;
 }
-
+// 重置CMT相关的统计信息
 void opagemap_reset()
 {
   cache_cmt_hit = 0;
@@ -1068,6 +1109,11 @@ void opagemap_reset()
   save_count = 0;
 }
 
+
+/*********************** 初始化函数*******************************
+ * 主要初始化的信息:
+ * 
+ ****************************************************************/
 int opm_init(blk_t SLC_blk_num,blk_t MLC_blk_num, blk_t extra_num )
 {
   int i;
