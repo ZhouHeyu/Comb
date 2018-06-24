@@ -779,6 +779,12 @@ int MLC_opm_gc_run(int small, int mapdir_flag)
   return (benefit + 1);
 }
 
+
+/****************************************************************
+* SLC写入更新比MLC更为负载,主要复杂在SLC分为warm 和hot区(CombFTL)
+* 区分region_flag  warm(0) 还是 hot(1)
+*****************************************************************/
+
 size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)  
 {
   int i,a,b,c,d,e,valid_flag,valid_sect_num;
@@ -800,7 +806,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
   ASSERT(lpn + size_page <= SLC_opagemap_num);
 
   s_lsn = lpn * S_SECT_NUM_PER_PAGE;
-
+// 确认标识符
   if(mapdir_flag == 2) //map page
     small = 0;
   else if (mapdir_flag == 1) //data page
@@ -809,6 +815,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
     printf("something corrupted");
     exit(0);
   }
+  // 以下处理当前耿新块写满选择空闲块的操作,3072应该是SLC块warm区的实际队列尾部
   if(region_flag==0){ //warm region 
     if (free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK) 
     {
@@ -817,6 +824,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
       {  head++;
         // printf("进入02后的状态：%d\n",(head-tail));
          if((head-SLC_nand_blk)==3068){
+          //  b就是当前warm尾部块在SLC_nand_blk的下标
             b=tail-SLC_nand_blk;
             warm_to_cold(b);//SLC_data_move(b);
             tail++;
@@ -828,6 +836,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
          printf("头指针＝%d\n",(head-SLC_nand_blk));
          printf("尾指针＝%d\n",(tail-SLC_nand_blk));*/
       }else if((head-SLC_nand_blk)<(tail-SLC_nand_blk)&&(head-SLC_nand_blk)<3068){
+         //  b就是当前warm尾部块在SLC_nand_blk的下标
          b=tail-SLC_nand_blk;
          head++;
          warm_to_cold(b);//SLC_data_move(b);                 
@@ -878,7 +887,8 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
   memset (lsns, 0xFF, sizeof (lsns));
   
   s_psn = S_SECTOR(free_SLC_blk_no[small], free_SLC_page_no[small]);
-  }else{ //cold region
+  }else{ 
+    //cold region,处理循环队列操作,4096是cold区域实际临界点,距离在3072到4096之间
      if (free_cold_page_no >= S_SECT_NUM_PER_BLK) 
          {
             free_cold_page_no = 0;  
@@ -949,7 +959,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
        }
   
   memset (lsns, 0xFF, sizeof (lsns));
-  
+  // 后面操作和MCL write 一样将原来的数据置位无效,将数据更新到新分配的物理扇区位置
   s_psn = S_SECTOR(free_cold_blk_no, free_cold_page_no);
   }
   if(s_psn % 4 != 0){
@@ -1024,26 +1034,29 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
     printf("something corrupted");
     exit(0);
   }
-
+  // 确保当前写入的空闲块是否还有空闲块,没有就取
   if (free_MLC_page_no[small] >= M_SECT_NUM_PER_BLK) 
   {
-
+    // 没有可取的空闲块,启动垃圾回收
     if ((free_MLC_blk_no[small] = nand_get_MLC_free_blk(0)) == -1) 
     {
       int j = 0;
 
       while (free_MLC_blk_num < 3 ){
+        // 启动垃圾回收选择无效页最多的块进行回收
         j += MLC_opm_gc_run(small, mapdir_flag);
       }
+      // 选择块擦除次数最小的块作为写入块
       MLC_opm_gc_get_free_blk(small, mapdir_flag);
     } 
     else {
+      // 取块成功
       free_MLC_page_no[small] = 0;
     }
   }
   
   memset (lsns, 0xFF, sizeof (lsns));
-  
+  // 将当前存入的物理地址转化为物理扇区地址psn
   s_psn = M_SECTOR(free_MLC_blk_no[small], free_MLC_page_no[small]);
 
   if(s_psn % 8 != 0){
@@ -1051,7 +1064,7 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
   }
 
   ppn = s_psn / M_SECT_NUM_PER_PAGE;
-
+  // 将之前数据页置位无效
   if (MLC_opagemap[lpn].free == 0) {
     s_psn1 = MLC_opagemap[lpn].ppn * M_SECT_NUM_PER_PAGE;
     for(i = 0; i<M_SECT_NUM_PER_PAGE; i++){
@@ -1060,6 +1073,7 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
     nand_stat(17);
   }
   else {
+    // 考虑到第一次加载盘里面其实没有数据的(预热阶段)
     MLC_opagemap[lpn].free = 0;
   }
 
@@ -1067,7 +1081,7 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
   {
     lsns[i] = s_lsn + i;
   }
-
+ // 更新新的映射关系项
   if(mapdir_flag == 2) {
     MLC_mapdir[lpn].ppn = ppn;
     MLC_opagemap[lpn].ppn = ppn;
@@ -1077,7 +1091,7 @@ size_t MLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag)
   }
 
   free_MLC_page_no[small] += M_SECT_NUM_PER_PAGE;
-
+ // 调用nand写入函数,写入到nand新的物理扇区s_psn中去
   MLC_nand_page_write(s_psn, lsns, 0, mapdir_flag);
 
   return sect_num;
@@ -1112,7 +1126,9 @@ void opagemap_reset()
 
 /*********************** 初始化函数*******************************
  * 主要初始化的信息:
- * 
+ * 初始化结构体数组 SLC_opagemap
+ * 初始化结构体数组 MLC_opagemap
+ * 初始化结构体数组 mapdir(SLC)和MLC_mapdir数组
  ****************************************************************/
 int opm_init(blk_t SLC_blk_num,blk_t MLC_blk_num, blk_t extra_num )
 {
@@ -1199,7 +1215,7 @@ int opm_init(blk_t SLC_blk_num,blk_t MLC_blk_num, blk_t extra_num )
   save_count = 0;
 
   //update 2nd mapping table
-  
+  // MLC_MAP_ENTRIES_PER_PAGE == 1024 项,地址大小为1024X512X4=2GB内存的地址开销
   for(i = 0; i<MLC_mapdir_num; i++){
     ASSERT(MLC_MAP_ENTRIES_PER_PAGE == 1024);
     MLC_opm_write(i*M_SECT_NUM_PER_PAGE, M_SECT_NUM_PER_PAGE, 2);
@@ -1222,6 +1238,7 @@ int opm_init(blk_t SLC_blk_num,blk_t MLC_blk_num, blk_t extra_num )
   
   return 0;
 }
+
 /*
 int SLC_opm_invalid(int secno)
 {
@@ -1241,6 +1258,9 @@ int SLC_opm_invalid(int secno)
   return SECT_NUM_PER_PAGE;
 
 }*/
+
+// 该函数在此文件中没用,估计师兄想代码复用写成函数,
+// 主要将MLC中原来页上的数据页置为无效
 int MLC_opm_invalid(int secno)
 {
   int lpn = secno/M_SECT_NUM_PER_PAGE + MLC_page_num_for_2nd_map_table;	

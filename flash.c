@@ -1300,6 +1300,7 @@ _u32 nand_get_cold_free_blk (int isGC)
 }
 
 /*********************MLC 的get Free blk 策略和nand_get_free 一样的********************************/
+// isGC为1表示不处于垃圾回收的状态
 
 _u32 nand_get_MLC_free_blk (int isGC) 
 {
