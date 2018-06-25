@@ -126,7 +126,7 @@ int flash_extrblocks;
 int ftl_type = -1;
 int req_num = 1;
 
- read-only globals used during readparams phase 
+//  read-only globals used during readparams phase 
 static char *statdesc_acctimestats	=	"Access time";
 
 //flashsim: define static global variable to make only one call to device
