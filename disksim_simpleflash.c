@@ -62,7 +62,6 @@
  * TO FREEDOM FROM PATENT, TRADEMARK, OR COPYRIGHT INFRINGEMENT.
  */
 
-/*
  * DiskSim Storage Subsystem Simulation Environment
  * Authors: Greg Ganger, Bruce Worthington, Yale Patt
  *
@@ -104,7 +103,6 @@
  * specific, written prior permission. Title to copyright in this software
  * and any associated documentation will at all times remain with copyright
  * holders.
- */
 
 #include "disksim_global.h"
 #include "disksim_iosim.h"
@@ -128,15 +126,18 @@ int flash_extrblocks;
 int ftl_type = -1;
 int req_num = 1;
 
-/* read-only globals used during readparams phase */
+ read-only globals used during readparams phase 
 static char *statdesc_acctimestats	=	"Access time";
 
 //flashsim: define static global variable to make only one call to device
 static double accessTime = 0.0;
 //flashsim: end
 
+/*
+关于该结构体的理解说明
+*/
 typedef struct {
-   statgen acctimestats;
+   statgen acctimestats;//
    double  requestedbus;
    double  waitingforbus;
    int     numbuswaits;
@@ -156,6 +157,7 @@ typedef struct simpleflash {
    int numblocks;
    int devno;
    int inited;
+   //请求队列链表
    struct ioq *queue;
    int media_busy;
    int reconnect_reason;
@@ -163,6 +165,7 @@ typedef struct simpleflash {
    double blktranstime;
    int maxqlen;
    int busowned;
+   //bus等待处理链表?
    ioreq_event *buswait;
    int neverdisconnect;
    int numinbuses;
@@ -178,28 +181,30 @@ typedef struct simpleflash {
 typedef struct simpleflash_info {
    struct simpleflash **simpleflashs;
    int numsimpleflashs;
-  int simpleflashs_len; /* allocated size of simpleflashs */
+  int simpleflashs_len;  allocated size of simpleflashs 
 } simpleflashinfo_t;
 
 
-/* private remapping #defines for variables from device_info_t */
+ private remapping #defines for variables from device_info_t 
 #define numsimpleflashs         (disksim->simpleflashinfo->numsimpleflashs)
 //#define simpleflashs            (disksim->simpleflashinfo->simpleflashs)
 
 
-
+//该函数就是返回结构体disksim->simpleflashinfo->simpleflashs[0]// devno 一般就是0
 struct simpleflash *getsimpleflash (int devno)
 {
    ASSERT1((devno >= 0) && (devno < MAXDEVICES), "devno", devno);
    return (disksim->simpleflashinfo->simpleflashs[0]);//[devno]); //hack by Kanishk : this restricts the number of flash devices in the system to 1 but allows a flash device to be coupled with a different kind of device, thus allowing a hetrogeneous topology 
 }
 
-
+/*
+设置处理请求队列,新建simpleflash_t *currflash的结构体内存
+*/
 int simpleflash_set_depth (int devno, int inbusno, int depth, int slotno)
 {
    simpleflash_t *currflash;
    int cnt;
-
+	//实际取出的是disksim->simpleflashinfo->simpleflashs[0]的内容
    currflash = getsimpleflash (devno);
    assert(currflash);
    cnt = currflash->numinbuses;
@@ -215,6 +220,9 @@ int simpleflash_set_depth (int devno, int inbusno, int depth, int slotno)
 }
 
 
+/*
+ devno 一般为0,通过函数getsimpleflash
+*/
 int simpleflash_get_depth (int devno)
 {
    simpleflash_t *currflash;
@@ -223,6 +231,10 @@ int simpleflash_get_depth (int devno)
 }
 
 
+/*
+都是通过函数getsimpleflash 得到disksim->simpleflashinfo->simpleflashs[0]的内容 也就是这里的simpleflash结构体
+* 都是从取其currflash-slotno·［0］
+*/
 int simpleflash_get_slotno (int devno)
 {
    simpleflash_t *currflash;
@@ -230,11 +242,14 @@ int simpleflash_get_slotno (int devno)
    return(currflash->slotno[0]);
 }
 
-
+/*
+都是通过函数getsimpleflash 得到disksim->simpleflashinfo->simpleflashs[0]的内容 也就是这里的simpleflash结构体
+* 都是从取其currflash-inbuses·［0］
+*/
 int simpleflash_get_inbus (int devno)
 {
    simpleflash_t *currflash;
-   currflash = getsimpleflash (devno);
+   currflash = getsimpleflash (devno);              `        
    return(currflash->inbuses[0]);
 }
 
