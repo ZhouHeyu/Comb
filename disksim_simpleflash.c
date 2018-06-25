@@ -767,6 +767,9 @@ double  simpleflash_get_servtime (int devno, ioreq_event *req, int checkcache, d
    return (accessTime);//simpleflash_get_acctime());
 }
 
+//flags表示读写请求类型(0w,1read)
+//flash_op_flag 0表示SLC ,1表示MLC
+// region_flag 针对SLC划分 0 warm 1hot,这里没有调用分析写入哪个区域
 double  simpleflash_get_acctime (int devno, unsigned int blkno, int bcount, int flags,int flash_op_flag,int region_flag)
 {
   double delay = 0;
