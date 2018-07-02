@@ -11,7 +11,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="109ce2ef-7503-47ef-89dd-f25fdfd1e81c" name="Default" comment="">
+    <list default="true" id="109ce2ef-7503-47ef-89dd-f25fdfd1e81c" name="Default" comment="DFTL代码测试通过，导入CPFTL的代码，进行编译测试">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change beforePath="$PROJECT_DIR$/ssd_interface.c" afterPath="$PROJECT_DIR$/ssd_interface.c" />
     </list>
@@ -32,36 +32,36 @@
       <file leaf-file-name="ssd_interface.c" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/ssd_interface.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="813">
-              <caret line="1542" column="0" lean-forward="false" selection-start-line="1542" selection-start-column="0" selection-end-line="1542" selection-end-column="0" />
+            <state relative-caret-position="579">
+              <caret line="834" column="24" lean-forward="true" selection-start-line="834" selection-start-column="24" selection-end-line="834" selection-end-column="24" />
               <folding>
                 <element signature="e#575#601#0" expanded="true" />
                 <element signature="e#5784#6044#0" expanded="false" />
-                <element signature="e#21748#22689#0" expanded="false" />
-                <element signature="e#22692#22836#0" expanded="false" />
-                <element signature="e#22692#25223#0" expanded="false" />
-                <element signature="e#25231#25345#0" expanded="false" />
-                <element signature="e#25346#25826#0" expanded="false" />
-                <element signature="e#25828#26102#0" expanded="false" />
-                <element signature="e#26105#26889#0" expanded="false" />
-                <element signature="e#26893#28849#0" expanded="false" />
-                <element signature="e#28851#34499#0" expanded="false" />
-                <element signature="e#34501#35430#0" expanded="false" />
-                <element signature="e#35432#35867#0" expanded="false" />
-                <element signature="e#35869#39410#0" expanded="false" />
-                <element signature="e#39412#40863#0" expanded="false" />
-                <element signature="e#40865#41598#0" expanded="false" />
-                <element signature="e#41600#43012#0" expanded="false" />
-                <element signature="e#43014#43264#0" expanded="false" />
-                <element signature="e#43268#48454#0" expanded="false" />
-                <element signature="e#48456#48875#0" expanded="false" />
-                <element signature="e#48878#49269#0" expanded="false" />
-                <element signature="e#49271#50738#0" expanded="false" />
-                <element signature="e#50740#51783#0" expanded="false" />
-                <element signature="e#51785#52955#0" expanded="false" />
-                <element signature="e#52957#55899#0" expanded="false" />
-                <element signature="e#55902#56572#0" expanded="false" />
-                <element signature="e#56575#60555#0" expanded="false" />
+                <element signature="e#21948#22889#0" expanded="false" />
+                <element signature="e#22892#23036#0" expanded="false" />
+                <element signature="e#22892#25423#0" expanded="false" />
+                <element signature="e#25431#25545#0" expanded="false" />
+                <element signature="e#25546#26026#0" expanded="false" />
+                <element signature="e#26028#26302#0" expanded="false" />
+                <element signature="e#26305#27089#0" expanded="false" />
+                <element signature="e#27093#29049#0" expanded="false" />
+                <element signature="e#29051#34699#0" expanded="false" />
+                <element signature="e#34701#35630#0" expanded="false" />
+                <element signature="e#35632#36067#0" expanded="false" />
+                <element signature="e#36069#39610#0" expanded="false" />
+                <element signature="e#39612#41063#0" expanded="false" />
+                <element signature="e#41065#41798#0" expanded="false" />
+                <element signature="e#41800#43212#0" expanded="false" />
+                <element signature="e#43214#43464#0" expanded="false" />
+                <element signature="e#43468#48654#0" expanded="false" />
+                <element signature="e#48656#49075#0" expanded="false" />
+                <element signature="e#49078#49469#0" expanded="false" />
+                <element signature="e#49471#50938#0" expanded="false" />
+                <element signature="e#50940#51983#0" expanded="false" />
+                <element signature="e#51985#53155#0" expanded="false" />
+                <element signature="e#53157#56099#0" expanded="false" />
+                <element signature="e#56102#56772#0" expanded="false" />
+                <element signature="e#56775#60755#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -174,7 +174,7 @@
       <updated>1528942414461</updated>
       <workItem from="1528942415850" duration="6295000" />
       <workItem from="1529299284342" duration="1824000" />
-      <workItem from="1530495687140" duration="3514000" />
+      <workItem from="1530495687140" duration="3687000" />
     </task>
     <task id="LOCAL-00001" summary="封装了callFsim关于SDFTL的所有细节函数,bug没有测试">
       <created>1528947267614</created>
@@ -211,11 +211,18 @@
       <option name="project" value="LOCAL" />
       <updated>1530497548613</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="DFTL代码测试通过，导入CPFTL的代码，进行编译测试">
+      <created>1530499972702</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1530499972702</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="11633000" />
+    <option name="totallyTimeSpent" value="11806000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="65" y="-4" width="1855" height="1084" extended-state="6" />
@@ -277,14 +284,15 @@
     <MESSAGE value="函数声明移动到ssd_interface.h文件" />
     <MESSAGE value="添加DFTL的算法" />
     <MESSAGE value="测试DFTL代码" />
-    <option name="LAST_COMMIT_MESSAGE" value="测试DFTL代码" />
+    <MESSAGE value="DFTL代码测试通过，导入CPFTL的代码，进行编译测试" />
+    <option name="LAST_COMMIT_MESSAGE" value="DFTL代码测试通过，导入CPFTL的代码，进行编译测试" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/ssd_interface.c</url>
-          <line>1278</line>
+          <line>1281</line>
           <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>
@@ -300,31 +308,31 @@
           <folding>
             <element signature="e#575#601#0" expanded="true" />
             <element signature="e#5784#6044#0" expanded="false" />
-            <element signature="e#21748#22689#0" expanded="false" />
-            <element signature="e#22692#22836#0" expanded="false" />
-            <element signature="e#22692#25223#0" expanded="false" />
-            <element signature="e#25231#25345#0" expanded="false" />
-            <element signature="e#25346#25826#0" expanded="false" />
-            <element signature="e#25828#26102#0" expanded="false" />
-            <element signature="e#26105#26889#0" expanded="false" />
-            <element signature="e#26893#28849#0" expanded="false" />
-            <element signature="e#28851#34499#0" expanded="false" />
-            <element signature="e#34501#35430#0" expanded="false" />
-            <element signature="e#35432#35867#0" expanded="false" />
-            <element signature="e#35869#39410#0" expanded="false" />
-            <element signature="e#39412#40863#0" expanded="false" />
-            <element signature="e#40865#41598#0" expanded="false" />
-            <element signature="e#41600#43012#0" expanded="false" />
-            <element signature="e#43014#43264#0" expanded="false" />
-            <element signature="e#43268#48454#0" expanded="false" />
-            <element signature="e#48456#48875#0" expanded="false" />
-            <element signature="e#48878#49269#0" expanded="false" />
-            <element signature="e#49271#50738#0" expanded="false" />
-            <element signature="e#50740#51783#0" expanded="false" />
-            <element signature="e#51785#52955#0" expanded="false" />
-            <element signature="e#52957#55899#0" expanded="false" />
-            <element signature="e#55902#56572#0" expanded="false" />
-            <element signature="e#56575#60555#0" expanded="false" />
+            <element signature="e#21948#22889#0" expanded="false" />
+            <element signature="e#22892#23036#0" expanded="false" />
+            <element signature="e#22892#25423#0" expanded="false" />
+            <element signature="e#25431#25545#0" expanded="false" />
+            <element signature="e#25546#26026#0" expanded="false" />
+            <element signature="e#26028#26302#0" expanded="false" />
+            <element signature="e#26305#27089#0" expanded="false" />
+            <element signature="e#27093#29049#0" expanded="false" />
+            <element signature="e#29051#34699#0" expanded="false" />
+            <element signature="e#34701#35630#0" expanded="false" />
+            <element signature="e#35632#36067#0" expanded="false" />
+            <element signature="e#36069#39610#0" expanded="false" />
+            <element signature="e#39612#41063#0" expanded="false" />
+            <element signature="e#41065#41798#0" expanded="false" />
+            <element signature="e#41800#43212#0" expanded="false" />
+            <element signature="e#43214#43464#0" expanded="false" />
+            <element signature="e#43468#48654#0" expanded="false" />
+            <element signature="e#48656#49075#0" expanded="false" />
+            <element signature="e#49078#49469#0" expanded="false" />
+            <element signature="e#49471#50938#0" expanded="false" />
+            <element signature="e#50940#51983#0" expanded="false" />
+            <element signature="e#51985#53155#0" expanded="false" />
+            <element signature="e#53157#56099#0" expanded="false" />
+            <element signature="e#56102#56772#0" expanded="false" />
+            <element signature="e#56775#60755#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -411,36 +419,36 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/ssd_interface.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="813">
-          <caret line="1542" column="0" lean-forward="false" selection-start-line="1542" selection-start-column="0" selection-end-line="1542" selection-end-column="0" />
+        <state relative-caret-position="579">
+          <caret line="834" column="24" lean-forward="true" selection-start-line="834" selection-start-column="24" selection-end-line="834" selection-end-column="24" />
           <folding>
             <element signature="e#575#601#0" expanded="true" />
             <element signature="e#5784#6044#0" expanded="false" />
-            <element signature="e#21748#22689#0" expanded="false" />
-            <element signature="e#22692#22836#0" expanded="false" />
-            <element signature="e#22692#25223#0" expanded="false" />
-            <element signature="e#25231#25345#0" expanded="false" />
-            <element signature="e#25346#25826#0" expanded="false" />
-            <element signature="e#25828#26102#0" expanded="false" />
-            <element signature="e#26105#26889#0" expanded="false" />
-            <element signature="e#26893#28849#0" expanded="false" />
-            <element signature="e#28851#34499#0" expanded="false" />
-            <element signature="e#34501#35430#0" expanded="false" />
-            <element signature="e#35432#35867#0" expanded="false" />
-            <element signature="e#35869#39410#0" expanded="false" />
-            <element signature="e#39412#40863#0" expanded="false" />
-            <element signature="e#40865#41598#0" expanded="false" />
-            <element signature="e#41600#43012#0" expanded="false" />
-            <element signature="e#43014#43264#0" expanded="false" />
-            <element signature="e#43268#48454#0" expanded="false" />
-            <element signature="e#48456#48875#0" expanded="false" />
-            <element signature="e#48878#49269#0" expanded="false" />
-            <element signature="e#49271#50738#0" expanded="false" />
-            <element signature="e#50740#51783#0" expanded="false" />
-            <element signature="e#51785#52955#0" expanded="false" />
-            <element signature="e#52957#55899#0" expanded="false" />
-            <element signature="e#55902#56572#0" expanded="false" />
-            <element signature="e#56575#60555#0" expanded="false" />
+            <element signature="e#21948#22889#0" expanded="false" />
+            <element signature="e#22892#23036#0" expanded="false" />
+            <element signature="e#22892#25423#0" expanded="false" />
+            <element signature="e#25431#25545#0" expanded="false" />
+            <element signature="e#25546#26026#0" expanded="false" />
+            <element signature="e#26028#26302#0" expanded="false" />
+            <element signature="e#26305#27089#0" expanded="false" />
+            <element signature="e#27093#29049#0" expanded="false" />
+            <element signature="e#29051#34699#0" expanded="false" />
+            <element signature="e#34701#35630#0" expanded="false" />
+            <element signature="e#35632#36067#0" expanded="false" />
+            <element signature="e#36069#39610#0" expanded="false" />
+            <element signature="e#39612#41063#0" expanded="false" />
+            <element signature="e#41065#41798#0" expanded="false" />
+            <element signature="e#41800#43212#0" expanded="false" />
+            <element signature="e#43214#43464#0" expanded="false" />
+            <element signature="e#43468#48654#0" expanded="false" />
+            <element signature="e#48656#49075#0" expanded="false" />
+            <element signature="e#49078#49469#0" expanded="false" />
+            <element signature="e#49471#50938#0" expanded="false" />
+            <element signature="e#50940#51983#0" expanded="false" />
+            <element signature="e#51985#53155#0" expanded="false" />
+            <element signature="e#53157#56099#0" expanded="false" />
+            <element signature="e#56102#56772#0" expanded="false" />
+            <element signature="e#56775#60755#0" expanded="false" />
           </folding>
         </state>
       </provider>
