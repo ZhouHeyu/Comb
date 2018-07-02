@@ -81,12 +81,12 @@ int big_request_count = 0;
 
 
 int MAP_REAL_MAX_ENTRIES=0;
-//int MAP_GHOST_MAX_ENTRIES=0;
+int MAP_GHOST_MAX_ENTRIES=0;
 int MAP_SEQ_MAX_ENTRIES=0; 
 int MAP_SECOND_MAX_ENTRIES=0; 
 int *real_arr= NULL;
 
-//int *ghost_arr=NULL;
+int *ghost_arr=NULL;
 int *seq_arr= NULL;
 int *second_arr=NULL;
 int SLC_write_page_count=0;
@@ -107,8 +107,10 @@ double sum_of_service_time = 0.0;
 double sum_of_response_time = 0.0;
 unsigned int total_num_of_req = 0;
 
+
+int zhou_flag=0;
 /***********************************************************************
- * 											callFsim-封装的函数
+ * 					callFsim-封装的函数
  * **********************************************************************/
  void SDFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag);
  void SecnoToPageno(int secno,int scount,int *blkno,int *bcount,int flash_flag);
@@ -120,14 +122,31 @@ void CMT_Is_Full(int region_flag);
 //pre load entry into SCMT
 void pre_load_entry_into_SCMT(int *pageno,int *req_size,int operation,int region_flag);
 void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag);
+
+/***********************************************************************
+ *             author:zhoujie       DFTL  主函数逻辑实现
+ ***********************************************************************/
+void DFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag);
+/********************************************************
+ *         author:zhoujie     DFTL 封装的相关函数
+ * *******************************************************/
+void DFTL_init_arr();
+void DFTL_Ghost_CMT_Full(int region_flag);
+void DFTL_Real_CMT_Full(int region_flag);
+void DFTL_Hit_Ghost_CMT(int blkno);
+void DFTL_Hit_Real_CMT(int blkno);
+
 /***********************************************************************
   Mapping table
  ***********************************************************************/
 int real_min = -1;
 int real_max = 0;
-/*
+int operation_time=0;
+int ghost_min=-1;
+
 int second_min = -1;
 int second_max = 0;
+/*
 //duchenjie:slcmt
 int block_min = -1;
 int block_max = 0;
@@ -482,6 +501,25 @@ void send_flash_request(int start_blk_no, int block_cnt, int operation, int mapd
       }
 }
 
+
+int MLC_find_ghost_min()
+{
+    int i,index;
+    int temp = 99999999;
+    for(i=0; i < MAP_GHOST_MAX_ENTRIES; i++) {
+        if(ghost_arr[i]>0){
+            if(MLC_opagemap[ghost_arr[i]].map_age <= temp) {
+                ghost_min = ghost_arr[i];
+                temp = MLC_opagemap[ghost_arr[i]].map_age;
+                index = i;
+            }
+        }
+
+    }
+    return ghost_min;
+}
+
+
 void MLC_find_real_max()
 {
   int i; 
@@ -798,7 +836,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 				blkno++;
 	  }
 	  else{
-				  if (itemcount==itemcount_threshold){
+				  if (itemcount==itemcount_threshold&&zhou_flag==0){
 							  request_cnt = rqst_cnt;
 							  write_cnt = write_count;
 							  read_cnt = read_count;
@@ -815,7 +853,8 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 								seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES); 
 								MAP_SECOND_MAX_ENTRIES=2560; 
 								second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES); 
-								init_arr();                             
+								init_arr();
+                                zhou_flag=1;
 					}
 					rqst_cnt++;
 					//请求在CMT中
@@ -866,7 +905,7 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
  
  
  /*********************************************
-  * 							SDFTL执行封装的函数
+  * 			SDFTL执行封装的函数
   * ******************************************/
 // hit CMT-entry
 void Hit_CMT_Entry(int blkno,int operation,int region_flag)
@@ -1196,3 +1235,231 @@ void req_Entry_Miss_SDFTL(int blkno,int operation,int region_flag)
 
 	
 }
+
+/***********************************************************************
+ *                    DFTL  主函数逻辑实现
+ ***********************************************************************/
+void DFTL_init_arr()
+{
+    int i;
+    for( i= 0; i< MAP_GHOST_MAX_ENTRIES;i++){
+        ghost_arr[i] = 0;
+    }
+
+    for( i = 0; i < MAP_REAL_MAX_ENTRIES; i++) {
+        real_arr[i] = 0;
+    }
+
+    MAP_REAL_NUM_ENTRIES=0;
+    MAP_GHOST_NUM_ENTRIES=0;
+}
+
+void DFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag)
+{
+    int blkno=(*pageno),cnt=(*req_size);
+    int real_min=-1,ghost_min=-1,pos=-1;
+
+    if(flash_flag==0){
+        // 处理SLC简单
+        send_flash_request(blkno*4,4,operation,1,0,region_flag);
+        blkno++;
+    }else{
+        //处理MLC
+        if (itemcount<itemcount_threshold){
+            //利用trace数进行判断
+            rqst_cnt++;
+            if(operation==0){
+                write_count++;//用于计算总的写请求数
+            }
+            else
+                read_count++;
+            blkno++;
+        }else{
+            if (itemcount==itemcount_threshold&&zhou_flag==0){
+                //重要的初始化在此初始化
+                request_cnt = rqst_cnt;
+                write_cnt = write_count;
+                read_cnt = read_count;
+                write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
+                read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列
+                average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
+                // test debug 100
+                MAP_REAL_MAX_ENTRIES=4096;
+                real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
+                // test debug 100
+                MAP_GHOST_MAX_ENTRIES=821;
+                ghost_arr=(int *)malloc(sizeof(int)*MAP_GHOST_MAX_ENTRIES);
+                DFTL_init_arr();
+                zhou_flag=1;
+            }
+
+            rqst_cnt++;
+            // req_entry in  SRAM
+            if((MLC_opagemap[blkno].map_status==MAP_REAL)||(MLC_opagemap[blkno].map_status==MAP_GHOST)){
+                cache_hit++;
+                MLC_opagemap[blkno].map_age++;
+                if(MLC_opagemap[blkno].map_status==MAP_GHOST){
+                    //debug test
+                    // printf("Hit Ghost CMT ,cache_hit %d\n",cache_hit);
+
+                    DFTL_Hit_Ghost_CMT(blkno);
+                }else if(MLC_opagemap[blkno].map_status==MAP_REAL){
+                    // debug test
+                    // printf("Hit Real CMT ,cache_hit %d\n",cache_hit);
+                    DFTL_Hit_Real_CMT(blkno);
+                }else{
+                    // debug
+                    printf("forbidden/shouldnt happen real =%d , ghost =%d\n",MAP_REAL,MAP_GHOST);
+                }
+
+                //2. opagemap not in SRAM
+            }else{
+                // REAL CMT is FULL
+                DFTL_Real_CMT_Full(region_flag);
+                //  read entry into REAL
+                flash_hit++;
+                send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8,8,1,2,1,region_flag);
+                translation_read_num++;
+                MLC_opagemap[blkno].map_status=MAP_REAL;
+                MLC_opagemap[blkno].map_age=MLC_opagemap[real_max].map_age+1;
+                real_max=blkno;
+                MAP_REAL_NUM_ENTRIES++;
+                pos=find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
+                // debug
+                if(pos == -1){
+                    printf("can not find free pos in real_arr for %d LPN",blkno);
+                    assert(0);
+                }
+                real_arr[pos]=0;
+                real_arr[pos]=blkno;
+            }
+
+            // write data or read data to flash
+            if(operation==0){
+                write_count++;
+                MLC_opagemap[blkno].update=1;
+            }else{
+                read_count++;
+            }
+            send_flash_request(blkno*8,8,operation,1,1,region_flag);
+            blkno++;
+        }
+    }
+
+    (*pageno)=blkno;
+    (*req_size)=cnt;
+}
+
+/********************************************************
+ *              DFTL 封装的相关函数
+ * *******************************************************/
+void DFTL_Ghost_CMT_Full(int region_flag)
+{
+    int ghost_min=-1,pos=-1;
+    if((MAP_GHOST_MAX_ENTRIES-MAP_GHOST_NUM_ENTRIES)==0){
+        // Ghost CMT is full
+        //evict one entry from ghost cache to DRAM or Disk, delay = DRAM or disk write, 1 oob write for invalidation
+        ghost_min=MLC_find_ghost_min();
+        // evict++;
+        if(MLC_opagemap[ghost_min].update ==1){
+            // update_reqd++;
+            MLC_opagemap[ghost_min].update=0;
+            // read from 2nd mapping table then update it
+            send_flash_request(((ghost_min-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8,8,1,2,1,region_flag);
+            translation_read_num++;
+            // write into 2nd mapping table
+            send_flash_request(((ghost_min-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8,8,0,2,1,region_flag);
+            translation_write_num++;
+        }
+        MLC_opagemap[ghost_min].map_status==MAP_INVALID;
+        MLC_opagemap[ghost_min].map_age=0;
+
+        //evict one entry from ghost cache
+        MAP_GHOST_NUM_ENTRIES--;
+        pos=search_table(ghost_arr,MAP_GHOST_MAX_ENTRIES,ghost_min);
+        if(pos==-1){
+            printf("can not find ghost_min:%d  in ghost_arr\n",ghost_min);
+            assert(0);
+        }
+        ghost_arr[pos]=0;
+    }
+}
+
+void DFTL_Real_CMT_Full(int region_flag)
+{
+    int real_min=-1,pos=-1;
+    if((MAP_REAL_MAX_ENTRIES-MAP_REAL_NUM_ENTRIES)==0){
+        // check Ghost is full?
+        DFTL_Ghost_CMT_Full(region_flag);
+        //evict one entry from real cache to ghost cache
+        MAP_REAL_NUM_ENTRIES--;
+        real_min=MLC_find_real_min();
+        MLC_opagemap[real_min].map_status=MAP_GHOST;
+        pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
+        if(pos==-1){
+            printf("can not find real_min:%d  in real_arr\n",real_min);
+            assert(0);
+        }
+        real_arr[pos]=0;
+        pos=find_free_pos(ghost_arr,MAP_GHOST_MAX_ENTRIES);
+        ghost_arr[pos]=real_min;
+        MAP_GHOST_NUM_ENTRIES++;
+    }
+}
+
+void DFTL_Hit_Ghost_CMT(int blkno)
+{
+
+    int real_min=-1;
+    int pos_ghost=-1,pos_real=-1;
+    real_min=MLC_find_real_min();
+    // 注意交换状态和数组数据
+    if(MLC_opagemap[real_min].map_age<=MLC_opagemap[blkno].map_age){
+        // 两者相互交换状态
+        MLC_opagemap[blkno].map_status=MAP_REAL;
+        MLC_opagemap[real_min].map_status=MAP_GHOST;
+
+        pos_ghost=search_table(ghost_arr,MAP_GHOST_MAX_ENTRIES,blkno);
+        if(pos_ghost==-1){
+            printf("can not find blkno:%d  in ghost_arr\n",blkno);
+            assert(0);
+        }
+        ghost_arr[pos_ghost]=0;
+
+        pos_real=search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
+        if(pos_real==-1){
+            printf("can not find real_min:%d  in real_arr\n",real_min);
+            assert(0);
+        }
+        real_arr[pos_real]=0;
+
+        real_arr[pos_real]=blkno;
+        ghost_arr[pos_ghost]=real_min;
+
+    }
+
+    // test debug
+//    if(CheckArrNum(ghost_arr,MAP_GHOST_MAX_ENTRIES,MAP_GHOST_NUM_ENTRIES)){
+//        printf("ghost arr curr_num is %d, count num is%d",CheckArrNum(ghost_arr,MAP_GHOST_MAX_ENTRIES,MAP_GHOST_NUM_ENTRIES),MAP_GHOST_NUM_ENTRIES);
+//        assert(0);
+//    }
+
+//    if(CheckArrNum(real_arr,MAP_REAL_MAX_ENTRIES,MAP_REAL_NUM_ENTRIES)){
+//        printf("real arr curr_num is %d, count num is%d",CheckArrNum(real_arr,MAP_REAL_MAX_ENTRIES,MAP_REAL_NUM_ENTRIES),MAP_REAL_NUM_ENTRIES);
+//        assert(0);
+//    }
+
+}
+
+void DFTL_Hit_Real_CMT(int blkno)
+{
+    if(real_max==-1){
+        real_max = 0;
+        MLC_find_real_max();
+        printf("Never happend\n");
+    }
+    if(MLC_opagemap[real_max].map_age<=MLC_opagemap[blkno].map_age){
+        real_max=blkno;
+    }
+}
+
