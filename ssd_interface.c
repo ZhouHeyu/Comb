@@ -754,8 +754,9 @@ double callFsim(unsigned int secno, int scount, int operation,int flash_flag,int
 									break;
 						case 3:
 									// SDFTL scheme
-									SDFTL_Scheme(&blkno,&cnt,operation,flash_flag,region_flag);
-									break;
+									//SDFTL_Scheme(&blkno,&cnt,operation,flash_flag,region_flag);
+									DFTL_Scheme(&blkno,&cnt,operation,flash_flag,region_flag);
+                                    break;
 						}//end-switch
 
 			}//end-while
