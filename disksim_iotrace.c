@@ -111,6 +111,11 @@ extern int migration_count;
 extern int SLC_write_page_count;
 extern int IO_trace;
 int INCRECEMENT=0;
+
+//和disksim_global.h的SLC宏定义相关#define total_SLC_util_sect_num  1048576//1048576
+int SLC_base_add=1048544;
+int SLC_base_page_num=262136;  //SLC_base_add/4
+
 static void iotrace_initialize_iotrace_info ()
 {
    disksim->iotrace_info = DISKSIM_malloc (sizeof(iotrace_info_t));
@@ -554,8 +559,8 @@ static ioreq_event * iotrace_ascii_get_ioreq_event_0 (FILE *tracefile, ioreq_eve
    sbcount = ((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
    mbcount = ((new->blkno+ new->bcount-1)/8 - (new->blkno)/8 + 1) * 8;
    if(new->bcount<=5){// 4
-   		if(new->blkno>=1048544){
-       		new->blkno=new->blkno-1048544;
+   		if(new->blkno>=SLC_base_add){
+       		new->blkno=new->blkno-SLC_base_add;
    		}
    		new->bcount=((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
    		new->blkno /= 4;
@@ -585,6 +590,8 @@ static ioreq_event * iotrace_ascii_get_ioreq_event_0 (FILE *tracefile, ioreq_eve
 static ioreq_event * iotrace_ascii_get_ioreq_event_1 (FILE *tracefile, ioreq_event *new)
 {
    char line[201];
+
+   //th_list就是论文确定的变动的几个固定阈值
    int th_list[5]={2,4,8,16,32};
    int th,sbcount,mbcount,threhold,diff,Es,Em,sblkno;
    _u32 RWs,RWm;
@@ -612,63 +619,72 @@ static ioreq_event * iotrace_ascii_get_ioreq_event_1 (FILE *tracefile, ioreq_eve
    threhold=abs(Es-Em);
    
   if(new->flags==0){ 
-   //  printf("SLC磨损速度：%d\n",SLC_stat_erase_num);
-   //  printf("MLC磨损速度：%d\n",MLC_stat_erase_num);                     
-   if(SLC_write_page_count>=261632){
-       ratio=(double)migration_count/SLC_write_page_count;
-       printf("ratio=%f\n",ratio);
-       migration_count=0;
-       SLC_write_page_count=0;
-       if(ratio>0.15){
-         if(INCRECEMENT==0)
-           INCRECEMENT==0;
-         else
-           INCRECEMENT--;         
-       }else if(ratio<0.05){
-         INCRECEMENT++;
-         if(INCRECEMENT==5)
-            INCRECEMENT=4;
-       }else{
-         INCRECEMENT+=0;
-       }
-    }
-    th=th_list[INCRECEMENT];
-    printf("th=%d\n",th);                   
-       sblkno=new->blkno;
-       sbcount=((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
-       sblkno /= 4;
-       sblkno *= 4;
-       cnt= (sblkno+ sbcount-1)/4 - (sblkno)/4 + 1;                          
-       if(cnt<=th){
-         if(new->blkno>=1048544){
-            new->blkno=new->blkno-1048544;
-         }        
-          new->flash_op_flag=0;
-          new->bcount=((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
-          new->blkno /= 4;
-          new->blkno *= 4;
-          new->region_flag=0;          
-      }else{       
-         new->flash_op_flag=1;
-         new->bcount = ((new->blkno+ new->bcount-1)/8 - (new->blkno)/8 + 1) * 8;
-         new->blkno /= 8;
-         new->blkno *= 8;
-         new->region_flag=0;
-      }      
-  }else{ 
-         new->region_flag=0;      
-         new->flash_op_flag=1;
-         new->bcount = ((new->blkno+ new->bcount-1)/8 - (new->blkno)/8 + 1) * 8;
-         new->blkno /= 8;
-         new->blkno *= 8;
-      
+     printf("SLC磨损速度：%d\n",SLC_stat_erase_num);
+     printf("MLC磨损速度：%d\n",MLC_stat_erase_num);
+     //SLC(1048544扇区转化为)页为261632(512MB)
+     if(SLC_write_page_count>=SLC_base_page_num){
+        ratio=(double)migration_count/SLC_write_page_count;
+        printf("ratio=%f\n",ratio);
+        migration_count=0;
+        //到达累计周期重置为0，在callFsim会接受重新统计写入SLC的次数
+        SLC_write_page_count=0;
+        //下面就根据保持阈值稳定th,以0.1上下0.05选择阈值，定档位
+        if(ratio>0.15){
+           if(INCRECEMENT==0)
+              INCRECEMENT==0;
+           else
+              INCRECEMENT--;
+        }else if(ratio<0.05){
+           INCRECEMENT++;
+           if(INCRECEMENT==5)
+              INCRECEMENT=4;
+        }else{
+           INCRECEMENT+=0;
+        }
+     }
+     th=th_list[INCRECEMENT];
+     printf("th=%d\n",th);
+     //2k页对齐方式
+     sblkno=new->blkno;
+     sbcount=((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
+     sblkno /= 4;
+     sblkno *= 4;
+     cnt= (sblkno+ sbcount-1)/4 - (sblkno)/4 + 1;
+      //根据阈值大小决定是否写入到SLC中（flash_op_flag=0）
+     //写入到SLC的blkno要减去SLC的大小1048544基数和写死的total_SLC_util_sect_num  1048576
+     //差了32？这是？换成SLC_base_add
+     if(cnt<=th){
+        if(new->blkno>=SLC_base_add){
+           new->blkno=new->blkno-SLC_base_add;
+        }
+        new->flash_op_flag=0;
+        new->bcount=((new->blkno+ new->bcount-1)/4 - (new->blkno)/4 + 1) * 4;
+        new->blkno /= 4;
+        new->blkno *= 4;
+        new->region_flag=0;
+     }else{
+        new->flash_op_flag=1;
+        new->bcount = ((new->blkno+ new->bcount-1)/8 - (new->blkno)/8 + 1) * 8;
+        new->blkno /= 8;
+        new->blkno *= 8;
+        new->region_flag=0;
+     }
+  }else{
+      //如果new-operation为非0则是读请求，直接交给MLC
+     new->region_flag=0;
+     new->flash_op_flag=1;
+     new->bcount = ((new->blkno+ new->bcount-1)/8 - (new->blkno)/8 + 1) * 8;
+     new->blkno /= 8;
+     new->blkno *= 8;
   }
-   if (new->flags & ASYNCHRONOUS) {
-      new->flags |= (new->flags & READ) ? TIME_LIMITED : 0;
-   } else if (new->flags & SYNCHRONOUS) {
-      new->flags |= TIME_CRITICAL;
-   }
 
+   //req数据其他操作代码
+
+  if (new->flags & ASYNCHRONOUS) {
+     new->flags |= (new->flags & READ) ? TIME_LIMITED : 0;
+   } else if (new->flags & SYNCHRONOUS) {
+     new->flags |= TIME_CRITICAL;
+   }
    new->buf = 0;
    new->opid = 0;
    new->busno = 0;

@@ -1,4 +1,4 @@
-/* 
+/*
  * Contributors: Youngjae Kim (youkim@cse.psu.edu)
  *               Aayush Gupta (axg354@cse.psu.edu)
  * 
@@ -816,16 +816,21 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
     exit(0);
   }
   // 以下处理当前耿新块写满选择空闲块的操作,3072应该是SLC块warm区的实际队列尾部
-  if(region_flag==0){ //warm region 
+  if(region_flag==0){
+      //warm region
     if (free_SLC_page_no[small] >= S_SECT_NUM_PER_BLK) 
     {
-      free_SLC_page_no[small] = 0;  
+        //如果当前warm-head（head）满了
+      free_SLC_page_no[small] = 0;
+      // 情况1（start (0)---->tail---->head--(free)->end(3068)）
       if((head-SLC_nand_blk)<3068&&(head-SLC_nand_blk)>=(tail-SLC_nand_blk))//3代表4096  5 代表8192
       {  head++;
         // printf("进入02后的状态：%d\n",(head-tail));
+          //head移动到队列的尾部3068
          if((head-SLC_nand_blk)==3068){
           //  b就是当前warm尾部块在SLC_nand_blk的下标
             b=tail-SLC_nand_blk;
+            //这里warm的感觉其实是hot，cold是warm
             warm_to_cold(b);//SLC_data_move(b);
             tail++;
           /*  printf("第2种情况：\n");
@@ -835,6 +840,7 @@ size_t SLC_opm_write(sect_t lsn, sect_t size, int mapdir_flag,int region_flag)
        /*  printf("第1种情况：\n");
          printf("头指针＝%d\n",(head-SLC_nand_blk));
          printf("尾指针＝%d\n",(tail-SLC_nand_blk));*/
+       //情况2 （start (0)---->head---->tail--(free)->end(3068)）
       }else if((head-SLC_nand_blk)<(tail-SLC_nand_blk)&&(head-SLC_nand_blk)<3068){
          //  b就是当前warm尾部块在SLC_nand_blk的下标
          b=tail-SLC_nand_blk;
