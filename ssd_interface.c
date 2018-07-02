@@ -137,6 +137,28 @@ void DFTL_Hit_Ghost_CMT(int blkno);
 void DFTL_Hit_Real_CMT(int blkno);
 
 /***********************************************************************
+ *             author:zhoujie       CPFTL  主函数逻辑实现
+ ***********************************************************************/
+void CPFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag);
+/********************************************************
+ *         author:zhoujie     CPFTL 封装的相关函数
+ * *******************************************************/
+void MLC_find_second_max();
+void Hit_HCMT(int blkno,int operation,int region_flag);
+void C_CMT_Is_Full(int region_flag);
+void H_CMT_Is_Full(int region_flag);
+void load_entry_into_C_CMT(int blkno,int operation,int region_flag);
+void move_CCMT_to_HCMT(int req_lpn,int operation,int region_flag);
+void move_SCMT_to_HCMT(int blkno ,int operation,int region_flag);
+void CPFTL_pre_load_entry_into_SCMT(int *pageno,int *req_size,int operation,int region_flag);
+
+/***********************************************************************
+ *                    debug function
+***********************************************************************/
+int CheckArrNum(int * arr,int max_num,int curr_num);
+int  MLC_CheckArrStatus(int *arr,int max_num,int flag);
+
+/***********************************************************************
   Mapping table
  ***********************************************************************/
 int real_min = -1;
@@ -155,6 +177,54 @@ struct lru *block;
 int block_index = 0;
 int block_entry_num = 0;
 int blocksize = init_size;//LRU块列表中初始块的个数*/
+
+// vaild_value >0
+int CheckArrNum(int * arr,int max_num,int curr_num)
+{
+    int flag=0;
+    int cnt=0,i;
+    for(i=0;i< max_num;i++){
+        if(arr[i]>0){
+            cnt++;
+        }
+    }
+
+    if(curr_num!=cnt){
+        return cnt;
+    }
+
+    return flag;
+}
+
+int MLC_CheckArrStatus(int *arr,int max_num,int flag)
+{
+    int i,j,pos=-1;
+    for(i=0;i<max_num;i++){
+        if(arr[i]>0){
+            if(MLC_opagemap[arr[i]].map_status!=flag){
+                printf("LPN:%d MLC_opagemap[arr[%d]].map_status != flag :%d\n",arr[i],i,flag);
+                return -1;
+
+            }
+
+        }
+    }
+/*
+	// fu za du guo gao
+	for(j=0;j<MLC_opagemap_num;j++){
+		if(MLC_opagemap[j].map_status==flag){
+			pos=search_table(arr,max_num,j);
+			if(pos==-1){
+				printf("MLC_opagemap[%d].map_status is flag:%d,but not in arr\n",j,flag);
+				return -2;
+			}
+		}
+	}
+*/
+
+
+    return 0;
+}
 /***********************************************************************
   Cache
  ***********************************************************************/
@@ -1462,5 +1532,525 @@ void DFTL_Hit_Real_CMT(int blkno)
     if(MLC_opagemap[real_max].map_age<=MLC_opagemap[blkno].map_age){
         real_max=blkno;
     }
+}
+
+
+
+/****************************************************
+ *              CPFTL  主函数
+ * **************************************************/
+void CPFTL_Scheme(int *pageno,int *req_size,int operation,int flash_flag,int region_flag)
+{
+    int blkno=(*pageno),cnt=(*req_size);
+    int pos=-1,free_pos=-1;
+    if(flash_flag==0){
+        send_flash_request(blkno*4, 4, operation, 1,0,region_flag);
+        blkno++;
+    }
+    else{
+
+        if (itemcount<itemcount_threshold)
+        {
+            //利用trace数进行判断
+            rqst_cnt++;
+            if(operation==0){
+                write_count++;//用于计算总的写请求数
+            }
+            else
+                read_count++;
+            blkno++;
+        }
+        else{
+
+            if (itemcount==itemcount_threshold&&zhou_flag==0){
+//            为了配合warm时候的CMT已经加载，所以需要一个标识符zhou_flag来跳过这个初始化函数
+                request_cnt = rqst_cnt;
+                write_cnt = write_count;
+                read_cnt = read_count;
+                write_ratio = (write_cnt*1.0)/request_cnt;//写请求比例
+                read_ratio = (read_cnt*1.0)/request_cnt;  //读请求比列
+
+                average_request_size = (total_request_size*1.0)/itemcount;//请求平均大小
+
+                //test set 100
+                MAP_REAL_MAX_ENTRIES=100;
+                // real_arr 当做H-CMT使用
+                real_arr=(int *)malloc(sizeof(int)*MAP_REAL_MAX_ENTRIES);
+                // test_debug -->old 1536
+                MAP_SEQ_MAX_ENTRIES=160;
+                // seq_arr当做S-CMT使用
+                seq_arr=(int *)malloc(sizeof(int)*MAP_SEQ_MAX_ENTRIES);
+                //test set 100
+                MAP_SECOND_MAX_ENTRIES=100;
+                // second_arr当做C-CMT使用
+                second_arr=(int *)malloc(sizeof(int)*MAP_SECOND_MAX_ENTRIES);
+                init_arr();
+                zhou_flag=1;
+            }
+            rqst_cnt++;
+            // 此处开始CPFTL函数的逻辑
+            if(MLC_opagemap[blkno].map_status==MAP_REAL){
+                // 1. req in H-CMT
+                Hit_HCMT(blkno,operation,region_flag);
+                //debug test
+                if(MLC_CheckArrStatus(second_arr,MAP_SECOND_MAX_ENTRIES,MAP_SECOND)!=0){
+                    printf("second_arr status error int req in H_CMT");
+                    assert(0);
+                }
+                blkno++;
+            }else if(MLC_opagemap[blkno].map_status==MAP_SECOND || MLC_opagemap[blkno].map_status==MAP_SEQ){
+                // 2. req in C-CMT or S-CMT
+                // load H-CMT is full
+
+                //debug test
+//			if(MLC_opagemap[blkno].map_status==MAP_SECOND){
+//				if(search_table(second_arr,MAP_SECOND_MAX_ENTRIES,blkno)==-1){
+//					printf("before second arr is error\n");
+//					assert(0);
+//				}
+//			}
+
+                if(MLC_opagemap[blkno].map_status==MAP_SECOND){
+                    move_CCMT_to_HCMT(blkno,operation,region_flag);
+
+                }else if(MLC_opagemap[blkno].map_status==MAP_SEQ){
+                    move_SCMT_to_HCMT(blkno,operation,region_flag);
+                }else{
+                    printf("should not come here!\n");
+                    assert(0);
+
+                }
+
+
+                //debug test
+//			if(MLC_opagemap[blkno].map_status==MAP_SECOND){
+//				if(search_table(second_arr,MAP_SECOND_MAX_ENTRIES,blkno)==-1){
+//					printf("after second arr is error\n");
+//					assert(0);
+//				}
+//			}
+
+                blkno++;
+
+            }
+            else if((cnt+1) >=10 ){
+                //THRESHOLD=10
+                // 3. THRESHOLD=2,表示大于或等于4KB的请求，当作连续请求来处理
+                //内部对blkno和cnt做了更新
+                // debug
+                int last_cnt=cnt;
+                int last_blkno=blkno;
+
+                CPFTL_pre_load_entry_into_SCMT(&blkno,&cnt,operation,region_flag);
+
+                //debug test
+                if(cnt>0){
+                    int i=0;
+                    for(i=0;i<=last_cnt;i++){
+                        last_blkno++;
+                        if(MLC_opagemap[last_blkno].map_status==MAP_SECOND){
+                            if(search_table(second_arr,MAP_SECOND_MAX_ENTRIES,last_blkno)==-1){
+                                printf("error happend after CPFTL_pre_load_entry_into_SCMT\n");
+                                printf("second_arr not include %d",last_blkno);
+                                assert(0);
+                            }
+                        }
+                    }
+                }
+                //debug test
+
+            }
+            else{
+                //4. opagemap not in SRAM  must think about if map table in SRAM(C-CMT) is full
+                C_CMT_Is_Full(region_flag);
+                // load entry into C_CMT
+                load_entry_into_C_CMT(blkno,operation,region_flag);
+
+                //debug test
+                if(MLC_opagemap[blkno].map_status==MAP_SECOND){
+                    if(search_table(second_arr,MAP_SECOND_MAX_ENTRIES,blkno)==-1){
+                        printf("load new-entry into second arr is failed\n");
+                        assert(0);
+                    }
+                }
+
+                blkno++;
+            }
+            //CMT中的各种情况处理完毕
+        }
+        //MLC中的映射关系处理完毕
+    }
+
+
+
+    // update return data
+    (*pageno)=blkno;
+    (*req_size)=cnt;
+}
+
+/****************************************************
+ *              CPFTL  封装函数
+ * **************************************************/
+void MLC_find_second_max()
+{
+    int i;
+
+    for(i=0;i < MAP_SECOND_MAX_ENTRIES; i++) {
+        if(second_arr[i]>0){
+            if(MLC_opagemap[second_arr[i]].map_age > MLC_opagemap[second_max].map_age) {
+                second_max = second_arr[i];
+            }
+        }
+    }
+
+}
+
+
+void Hit_HCMT(int blkno,int operation,int region_flag)
+{
+    MLC_opagemap[blkno].map_status=MAP_REAL;
+    MLC_opagemap[blkno].map_age=operation_time;
+    operation_time++;
+    // write or read data page
+    if(operation==0){
+        write_count++;
+        MLC_opagemap[blkno].update = 1;
+    }
+    else
+        read_count++;
+
+    send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
+}
+
+void H_CMT_Is_Full(int region_flag)
+{
+    int min_real,pos=-1,pos_2nd=-1;
+    // 查看H_CMT是否满了
+    if((MAP_REAL_MAX_ENTRIES - MAP_REAL_NUM_ENTRIES) == 0){
+        min_real = MLC_find_real_min();
+        if(MLC_opagemap[min_real].update == 1){
+            C_CMT_Is_Full(region_flag);
+            //将H-CMT中更新的映射项剔除到C-CMT中
+            MLC_opagemap[min_real].map_status = MAP_SECOND;
+            pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
+            real_arr[pos]=0;
+            MAP_REAL_NUM_ENTRIES--;
+            pos_2nd = find_free_pos(second_arr,MAP_SECOND_MAX_ENTRIES);
+            second_arr[pos_2nd]=0;
+            second_arr[pos_2nd]=min_real;
+            MAP_SECOND_NUM_ENTRIES++;
+            //debug
+            if(MAP_SECOND_NUM_ENTRIES > MAP_SECOND_MAX_ENTRIES){
+                printf("The second cache is overflow!\n");
+                assert(0);
+            }
+
+            //debug test
+            if(MLC_opagemap[min_real].map_status==MAP_SECOND && search_table(second_arr,MAP_SECOND_MAX_ENTRIES,min_real)==-1){
+                printf("not reset min_real:%d into second_arr\n",min_real);
+                assert(0);
+            }
+        }else{
+            // 没有更新直接剔除到flash
+            pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,min_real);
+            real_arr[pos]=0;
+            MLC_opagemap[min_real].map_status = MAP_INVALID;
+            MLC_opagemap[min_real].map_age = 0;
+            MAP_REAL_NUM_ENTRIES--;
+        }
+    }
+
+
+}
+
+// C-CMT之后要修改
+void C_CMT_Is_Full(int region_flag)
+{
+    // int min_second=-1;
+    // min_second=MLC_find_second_min();
+    int i=0;
+//	int offset=0;
+    // 若果满了,先选择关联度最大进行删除
+    if(MAP_SECOND_MAX_ENTRIES-MAP_SECOND_NUM_ENTRIES==0){
+        MC=0;
+        find_MC_entries(second_arr,MAP_SECOND_MAX_ENTRIES);
+        send_flash_request(maxentry*8,8,1,2,1,region_flag);
+        translation_read_num++;
+        send_flash_request(maxentry*8,8,0,2,1,region_flag);
+        translation_write_num++;
+
+        //sencond_arr数组里面存的是lpn,将翻译页关联的映射项全部置为无效
+        for(indexold = 0;indexold < MAP_SECOND_MAX_ENTRIES; indexold++){
+            if(((second_arr[indexold]-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE) == maxentry){
+                MLC_opagemap[second_arr[indexold]].update = 0;
+                MLC_opagemap[second_arr[indexold]].map_status = MAP_INVALID;
+                MLC_opagemap[second_arr[indexold]].map_age = 0;
+                second_arr[indexold]=0;
+                MAP_SECOND_NUM_ENTRIES--;
+            }
+        }
+
+
+    }
+}
+
+void load_entry_into_C_CMT(int blkno,int operation,int region_flag)
+{
+    int free_pos=-1;
+    flash_hit++;
+    // read MVPN page
+    send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);   // read from 2nd mapping table
+    translation_read_num++;
+    MLC_opagemap[blkno].map_status = MAP_SECOND;
+
+    MLC_opagemap[blkno].map_age=operation_time;
+    operation_time++;
+    free_pos=find_free_pos(second_arr,MAP_SECOND_MAX_ENTRIES);
+    if(free_pos==-1){
+        printf("can not find free pos in second_arr\n");
+        assert(0);
+    }
+    second_arr[free_pos]=blkno;
+    MAP_SECOND_NUM_ENTRIES++;
+
+    // write or read data page
+    if(operation==0){
+        write_count++;
+        MLC_opagemap[blkno].update = 1;
+    }
+    else
+        read_count++;
+
+    send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
+
+    // debug test
+    if(MLC_opagemap[blkno].map_status!=MAP_SECOND){
+        printf("not set MLC_opagemap flag\n");
+        assert(0);
+    }
+    if(search_table(second_arr,MAP_SECOND_MAX_ENTRIES,blkno)==-1){
+        printf("not play lpn-entry:%d into CMT\n",blkno);
+        assert(0);
+    }
+
+}
+
+// 因为CPFTL命中CCMT加载到H-CMT中的逻辑存在混乱，故重新定义一个加载函数
+void move_CCMT_to_HCMT(int req_lpn,int operation,int region_flag)
+{
+    int flag=-1,real_min,pos=-1,pos_2nd=-1,free_pos=-1;
+//    int temp;
+    int limit_start=-1,limit_end=-1;
+
+    //debug-value
+    int last_second;
+    int last_real;
+
+
+    pos_2nd=search_table(second_arr,MAP_SECOND_MAX_ENTRIES,req_lpn);
+
+    MC=0;
+    find_MC_entries(second_arr,MAP_SECOND_MAX_ENTRIES);
+    limit_start=maxentry*MLC_MAP_ENTRIES_PER_PAGE+MLC_page_num_for_2nd_map_table;
+    limit_end=(maxentry+1)*MLC_MAP_ENTRIES_PER_PAGE+MLC_page_num_for_2nd_map_table;
+    if(req_lpn>=limit_start && req_lpn<=limit_end){
+        flag=1;
+    }
+    //处理掉特殊情况
+    if(flag!=-1 && MAP_REAL_NUM_ENTRIES == MAP_REAL_MAX_ENTRIES){
+        //printf("real is full and CCMT hit need to load entry to  HCMT\n");
+        real_min=MLC_find_real_min();
+        if(MLC_opagemap[real_min].update==1){
+            // 直接交换两者的位置
+            pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
+            MLC_opagemap[real_min].map_status = MAP_SECOND;
+            second_arr[pos_2nd]=real_min;
+            real_arr[pos]=req_lpn;
+            MLC_opagemap[req_lpn].map_status=MAP_REAL;
+            MLC_opagemap[req_lpn].map_age=operation_time;
+            operation_time++;
+        }else{
+            // 没有更新直接剔除到flash
+            pos = search_table(real_arr,MAP_REAL_MAX_ENTRIES,real_min);
+            real_arr[pos]=0;
+            MLC_opagemap[real_min].map_status = MAP_INVALID;
+            MLC_opagemap[real_min].map_age = 0;
+            MAP_REAL_NUM_ENTRIES--;
+            //将real_arr[pos]存放刚刚命中的lpn
+            real_arr[pos]=req_lpn;
+            MLC_opagemap[req_lpn].map_status=MAP_REAL;
+            MAP_REAL_NUM_ENTRIES++;
+            MLC_opagemap[req_lpn].map_age=operation_time;
+            operation_time++;
+            second_arr[pos_2nd]=0;
+            MAP_SECOND_NUM_ENTRIES--;
+
+        }
+        //特殊情况处理完毕
+    }else{
+        //其他情况依旧采用之前的置换策略；
+        last_real=MAP_REAL_NUM_ENTRIES;
+        last_second=MAP_SECOND_NUM_ENTRIES;
+        H_CMT_Is_Full(region_flag);
+        pos=search_table(second_arr,MAP_SECOND_MAX_ENTRIES,req_lpn);
+        if(pos==-1){
+            printf("can not find blkno :%d in second_arr\n",req_lpn);
+            assert(0);
+        }
+        second_arr[pos]=0;
+        MAP_SECOND_NUM_ENTRIES--;
+        free_pos=find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
+        if(free_pos==-1){
+            printf("can not find free pos in real_arr\n");
+            assert(0);
+        }
+        real_arr[free_pos]=req_lpn;
+        MAP_REAL_NUM_ENTRIES++;
+        MLC_opagemap[req_lpn].map_status=MAP_REAL;
+        MLC_opagemap[req_lpn].map_age=operation_time;
+        operation_time++;
+
+    }
+    //data page operation
+    if(operation==0){
+        write_count++;
+        MLC_opagemap[req_lpn].update = 1;
+    }
+    else
+        read_count++;
+
+    send_flash_request(req_lpn*8, 8, operation, 1,1,region_flag);
+
+}
+
+
+void move_SCMT_to_HCMT(int blkno ,int operation,int region_flag)
+{
+    int free_pos=-1;
+    H_CMT_Is_Full(region_flag);
+    free_pos=find_free_pos(real_arr,MAP_REAL_MAX_ENTRIES);
+    if(free_pos==-1){
+        printf("can not find free pos in real_arr\n");
+        assert(0);
+    }
+    real_arr[free_pos]=blkno;
+    MLC_opagemap[blkno].map_status=MAP_REAL;
+    MLC_opagemap[blkno].map_age=operation_time;
+    operation_time++;
+    MAP_REAL_NUM_ENTRIES++;
+    //operation data pages
+    if(operation==0){
+        write_count++;
+        MLC_opagemap[blkno].update = 1;
+    }
+    else
+        read_count++;
+
+    send_flash_request(blkno*8, 8, operation, 1,1,region_flag);
+
+}
+
+
+void CPFTL_pre_load_entry_into_SCMT(int *pageno,int *req_size,int operation,int region_flag)
+{
+    int blkno=(*pageno),cnt=(*req_size);
+    int pos=-1,free_pos=-1;
+
+    if(not_in_cache(blkno)){
+        //~满足之后连续的pre_num个数的映射项不在CMT中才预取
+        if((MAP_SEQ_MAX_ENTRIES-MAP_SEQ_NUM_ENTRIES)==0){
+            //~如果seq_arr满了
+            for(indexofarr = 0;indexofarr < NUM_ENTRIES_PER_TIME;indexofarr++){
+                //SEQ的替换策略是把SEQ的最前面几个映射项剔除出去，查看是否存在更新页，存在一个更新页，整个翻译页都得重新更细，update_flag置位
+                if((MLC_opagemap[seq_arr[indexofarr]].update == 1)&&(MLC_opagemap[seq_arr[indexofarr]].map_status == MAP_SEQ))
+                {
+                    //update_reqd++;
+                    update_flag=1;
+                    MLC_opagemap[seq_arr[indexofarr]].update=0;
+                    MLC_opagemap[seq_arr[indexofarr]].map_status = MAP_INVALID;
+                    MLC_opagemap[seq_arr[indexofarr]].map_age = 0;
+                }
+                else if((MLC_opagemap[seq_arr[indexofarr]].update == 0)&&(MLC_opagemap[seq_arr[indexofarr]].map_status ==MAP_SEQ))
+                {
+                    MLC_opagemap[seq_arr[indexofarr]].map_status = MAP_INVALID;
+                    MLC_opagemap[seq_arr[indexofarr]].map_age = 0;
+                }
+            }
+            if(update_flag == 1)
+            {
+                //~这里的NUM_ENTRIES_PER_TIME必须远小于一个页
+                send_flash_request(((seq_arr[0]-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8,8,1,2,1,region_flag);
+                translation_read_num++;
+                send_flash_request(((seq_arr[0]-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8,8,0,2,1,region_flag);
+                translation_write_num++;
+                update_flag=0;
+            }
+            //~ 根据FIFO移动数组数据覆盖
+            for(indexofarr = 0;indexofarr <= MAP_SEQ_MAX_ENTRIES-1-NUM_ENTRIES_PER_TIME; indexofarr++)
+                seq_arr[indexofarr] = seq_arr[indexofarr+NUM_ENTRIES_PER_TIME];
+            MAP_SEQ_NUM_ENTRIES-=NUM_ENTRIES_PER_TIME;
+        }
+        //~ 剔除依据FIFO完毕 ，开始预取
+        flash_hit++;
+        send_flash_request(((blkno-MLC_page_num_for_2nd_map_table)/MLC_MAP_ENTRIES_PER_PAGE)*8, 8, 1, 2,1,region_flag);
+        translation_read_num++;
+        for(indexofseq=0; indexofseq < NUM_ENTRIES_PER_TIME;indexofseq++)//NUM_ENTRIES_PER_TIME在这里表示一次加载4个映射表信息
+        {
+            MLC_opagemap[blkno+indexofseq].map_status=MAP_SEQ;
+            MLC_opagemap[blkno+indexofseq].map_age=operation_time;
+            operation_time++;
+            //~对应的seq命中转移数据页应该不能删除原来的数据
+            seq_arr[MAP_SEQ_NUM_ENTRIES] = (blkno+indexofseq);//加载到SEQ的映射项是放在SEQ尾部
+            MAP_SEQ_NUM_ENTRIES++;
+        }
+        if(MAP_SEQ_NUM_ENTRIES > MAP_SEQ_MAX_ENTRIES)
+        {
+            printf("The sequential cache is overflow!\n");
+            exit(0);
+        }
+        //~  对数据页读取写入操作更新
+        if(operation==0)
+        {
+            write_count++;
+            MLC_opagemap[blkno].update=1;
+        }
+        else
+            read_count++;
+        send_flash_request(blkno*8,8,operation,1,1,region_flag);
+
+        blkno++;
+        sequential_count = 0;
+        //之后连续的请求因为映射加载完成直接读取写入操作
+        for(;(cnt>0)&&(sequential_count<NUM_ENTRIES_PER_TIME-1);cnt--)
+        {
+            MLC_opagemap[blkno].map_age++;
+            cache_scmt_hit++;
+            if(operation==0)
+            {
+                write_count++;
+                MLC_opagemap[blkno].update=1;
+            }
+            else
+                read_count++;
+            send_flash_request(blkno*8,8,operation,1,1,region_flag);
+            blkno++;
+            rqst_cnt++;
+            sequential_count++;
+        }
+
+        //zhoujie
+        *req_size=cnt;
+        *pageno=blkno;
+
+    }else{
+        //~反之只是将其一个映射项加载到CCMT中 (根据前面的删选，只能是不存在CMT的映射项)
+        C_CMT_Is_Full(region_flag);
+        load_entry_into_C_CMT(blkno,operation,region_flag);
+        blkno++;
+        //zhoujie
+        *req_size=cnt;
+        *pageno=blkno;
+    }
+    //连续加载处理完成
 }
 
